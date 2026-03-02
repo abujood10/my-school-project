@@ -5,7 +5,8 @@ import pb from "@/lib/pocketbase";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function SchoolSettingsPage() {
-  const { role, profile, loading } = useAuth();
+  const { profile, loading } = useAuth();
+  const role = profile?.role;
 
   const [school, setSchool] = useState<any>(null);
   const [name, setName] = useState("");
@@ -17,22 +18,30 @@ export default function SchoolSettingsPage() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    if (profile?.schoolId) loadSchool();
+    if (profile?.schoolId) {
+      loadSchool(profile.schoolId);
+    }
   }, [profile]);
 
-  async function loadSchool() {
-    const s = await pb.collection("schools").getOne(profile.schoolId);
-    setSchool(s);
-    setName(s.name || "");
-    setContactEmail(s.contactEmail || "");
-    setContactPhone(s.contactPhone || "");
-    setDescription(s.description || "");
+  async function loadSchool(schoolId: string) {
+    try {
+      const s = await pb.collection("schools").getOne(schoolId);
+      setSchool(s);
+      setName(s.name ?? "");
+      setContactEmail(s.contactEmail ?? "");
+      setContactPhone(s.contactPhone ?? "");
+      setDescription(s.description ?? "");
+    } catch {
+      setMsg("حدث خطأ أثناء تحميل بيانات المدرسة");
+    }
   }
 
   if (loading) return <p>جاري التحميل...</p>;
   if (role !== "school_admin") return <p>غير مصرح</p>;
 
   async function saveSettings() {
+    if (!school) return;
+
     setSaving(true);
     setMsg("");
 
@@ -42,13 +51,16 @@ export default function SchoolSettingsPage() {
       formData.append("contactEmail", contactEmail);
       formData.append("contactPhone", contactPhone);
       formData.append("description", description);
-      if (logo) formData.append("logo", logo);
+
+      if (logo) {
+        formData.append("logo", logo);
+      }
 
       await pb.collection("schools").update(school.id, formData);
 
-      setMsg("✅ تم حفظ الإعدادات");
+      setMsg("✅ تم حفظ الإعدادات بنجاح");
       setLogo(null);
-    } catch (err) {
+    } catch {
       setMsg("حدث خطأ أثناء الحفظ");
     } finally {
       setSaving(false);
@@ -90,7 +102,7 @@ export default function SchoolSettingsPage() {
       <input
         type="file"
         accept="image/*"
-        onChange={(e) => setLogo(e.target.files?.[0] || null)}
+        onChange={(e) => setLogo(e.target.files?.[0] ?? null)}
         style={inputStyle}
       />
 
