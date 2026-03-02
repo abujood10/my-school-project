@@ -3,10 +3,10 @@ import PocketBase from "pocketbase";
 import { jsPDF } from "jspdf";
 
 export async function GET(
-  req: NextRequest,
-  context: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = context.params;
+  const { id } = await params;
 
   const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
@@ -40,7 +40,7 @@ export async function GET(
         "Content-Disposition": `attachment; filename=invoice-${payment.invoiceNumber ?? id}.pdf`,
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "Invoice not found" },
       { status: 404 }
