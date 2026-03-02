@@ -5,7 +5,8 @@ import pb from "@/lib/pocketbase";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function CreateSchoolAdminPage() {
-  const { role, loading } = useAuth();
+  const { profile, loading } = useAuth();
+  const role = profile?.role;
 
   const [schools, setSchools] = useState<any[]>([]);
   const [email, setEmail] = useState("");
@@ -16,12 +17,19 @@ export default function CreateSchoolAdminPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    async function loadSchools() {
+    if (role === "super_admin") {
+      loadSchools();
+    }
+  }, [role]);
+
+  async function loadSchools() {
+    try {
       const res = await pb.collection("schools").getFullList();
       setSchools(res);
+    } catch {
+      setMsg("فشل تحميل المدارس");
     }
-    loadSchools();
-  }, []);
+  }
 
   if (loading) return <p>جاري التحميل...</p>;
   if (role !== "super_admin") return <p>غير مصرح</p>;
