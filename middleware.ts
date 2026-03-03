@@ -4,12 +4,13 @@ import PocketBase from "pocketbase";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 🔥 استثناء مسارات PocketBase
+  // 🔥 استثناء المسارات المهمة
   if (
     pathname.startsWith("/pb") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/" // 🔥 مهم جداً
   ) {
     return NextResponse.next();
   }
@@ -17,14 +18,17 @@ export async function middleware(req: NextRequest) {
   const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
   const host = req.headers.get("host") || "";
-  const subdomain = host.split(".")[0];
 
+  // 🔥 إذا كان الدومين الرئيسي بدون subdomain
   if (
-    host.startsWith("localhost") ||
-    host.startsWith("www")
+    host === "myschoolsnet.cloud" ||
+    host === "www.myschoolsnet.cloud" ||
+    host.startsWith("localhost")
   ) {
     return NextResponse.next();
   }
+
+  const subdomain = host.split(".")[0];
 
   try {
     const school = await pb
@@ -47,7 +51,8 @@ export async function middleware(req: NextRequest) {
     return response;
 
   } catch {
-    return NextResponse.redirect(new URL("/", req.url));
+    // 🔥 لا تعيد التوجيه إلى "/" مرة أخرى
+    return NextResponse.next();
   }
 }
 
