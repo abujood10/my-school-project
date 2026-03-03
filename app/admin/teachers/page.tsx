@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import PocketBase from "pocketbase";
 import Header from "@/app/components/Header";
 
-const pb = new PocketBase("http://127.0.0.1:8090");
+const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
 type Teacher = {
   id: string;

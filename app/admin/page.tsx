@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import PocketBase from "pocketbase";
 import Header from "@/app/components/Header";
 
-const pb = new PocketBase("http://127.0.0.1:8090");
+const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
 type Stats = {
   students: number;
@@ -25,7 +25,6 @@ export default function SchoolAdminDashboard() {
   useEffect(() => {
     async function loadDashboard() {
       try {
-        // 1️⃣ جلب بروفايل مدير المدرسة + المدرسة
         const profile = await pb
           .collection("profiles")
           .getFirstListItem(`user="${pb.authStore.model?.id}"`, {
@@ -38,7 +37,6 @@ export default function SchoolAdminDashboard() {
         setSchoolName(school.name);
         setExpiresAt(school.expiresAt || null);
 
-        // 2️⃣ العدّادات
         const students = await pb.collection("students").getFullList({
           filter: `schoolId="${school.id}"`,
         });
@@ -68,18 +66,14 @@ export default function SchoolAdminDashboard() {
 
   const isExpiringSoon =
     expiresAt &&
-    new Date(expiresAt).getTime() - Date.now() < 1000 * 60 * 60 * 24 * 14; // 14 يوم
+    new Date(expiresAt).getTime() - Date.now() < 1000 * 60 * 60 * 24 * 14;
 
   return (
     <>
       <Header />
-
       <div style={{ padding: 24 }} dir="rtl">
         <h1 style={{ marginBottom: 8 }}>📊 لوحة تحكم المدرسة</h1>
-
-        <p style={{ color: "#555", marginBottom: 20 }}>
-          🏫 {schoolName}
-        </p>
+        <p style={{ color: "#555", marginBottom: 20 }}>🏫 {schoolName}</p>
 
         {isExpiringSoon && (
           <div
