@@ -2,9 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import PocketBase from "pocketbase";
-
-const pb = new PocketBase("http://127.0.0.1:8090");
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,13 +16,22 @@ export default function LoginPage() {
     setError("");
 
     try {
-      await pb.collection("users").authWithPassword(email, password);
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      const data = await res.json();
 
-      switch (profile.role) {
+      if (!res.ok) {
+        throw new Error(data.message || "فشل تسجيل الدخول");
+      }
+
+      // 🔥 التوجيه حسب الدور
+      switch (data.role) {
         case "super_admin":
           router.push("/super-admin");
           break;
@@ -41,8 +47,9 @@ export default function LoginPage() {
         default:
           throw new Error("الدور غير معروف");
       }
+
     } catch (err: any) {
-      setError(err.message || "فشل تسجيل الدخول");
+      setError(err.message || "حدث خطأ أثناء تسجيل الدخول");
     } finally {
       setLoading(false);
     }
@@ -52,7 +59,6 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 space-y-6">
 
-        {/* العنوان */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold text-gray-800">
             تسجيل الدخول
@@ -62,7 +68,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* الفورم */}
         <form onSubmit={handleLogin} className="space-y-4">
 
           <div>
@@ -75,7 +80,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -89,21 +94,20 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
           >
             {loading ? "جاري تسجيل الدخول..." : "دخول"}
           </button>
 
         </form>
 
-        {/* رسالة الخطأ */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg text-center">
             {error}
