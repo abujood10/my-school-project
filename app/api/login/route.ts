@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import PocketBase from "pocketbase";
+import pb from "@/lib/pocketbase";
 
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
 
-    const pb = new PocketBase("http://127.0.0.1:8090");
+    
 
     const authData = await pb
       .collection("users")
