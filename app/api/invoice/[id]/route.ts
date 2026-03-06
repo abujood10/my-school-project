@@ -4,16 +4,23 @@ import { jsPDF } from "jspdf";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  const { id } = await params;
-
-  const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
-
   try {
+    const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
+
+    const { id } = params;
+
     const payment = await pb.collection("payments").getOne(id, {
       expand: "school,plan",
     });
+
+    if (!payment) {
+      return NextResponse.json(
+        { error: "Invoice not found" },
+        { status: 404 }
+      );
+    }
 
     const doc = new jsPDF();
 
@@ -40,6 +47,7 @@ export async function GET(
         "Content-Disposition": `attachment; filename=invoice-${payment.invoiceNumber ?? id}.pdf`,
       },
     });
+
   } catch {
     return NextResponse.json(
       { error: "Invoice not found" },
