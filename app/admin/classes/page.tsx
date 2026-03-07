@@ -1,163 +1,125 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import pb from "@/lib/pocketbase";
 
 type ClassType = {
   id: string;
   name: string;
 };
 
+type Student = {
+  id: string;
+  name: string;
+};
+
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassType[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [className, setClassName] = useState("");
   const [studentName, setStudentName] = useState("");
   const [selectedClass, setSelectedClass] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [planName, setPlanName] = useState("");
-  const [maxStudents, setMaxStudents] = useState(0);
-  const [currentStudents, setCurrentStudents] = useState(0);
-
-  const [schoolId, setSchoolId] = useState("");
-
   useEffect(() => {
-    loadInitialData();
+    loadStudents();
   }, []);
 
-  async function loadInitialData() {
-    try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(
-          `user="${pb.authStore.model?.id}"`,
-          { expand: "schoolId,schoolId.plan" }
-        );
-
-      const school: any = profile.expand?.schoolId;
-      const plan: any = school?.expand?.plan;
-
-      if (!school) return;
-
-      setSchoolId(school.id);
-
-      if (plan) {
-        setPlanName(plan.name);
-        setMaxStudents(plan.maxStudents);
-      }
-
-      // عدد الطلاب الحالي
-      const studentsRes = await pb.collection("students").getList(1, 1, {
-        filter: `schoolId="${school.id}"`,
-      });
-
-      setCurrentStudents(studentsRes.totalItems);
-
-      // تحميل الفصول
-      const classesRes = await pb.collection("classes").getFullList<ClassType>({
-        filter: `schoolId="${school.id}"`,
-        sort: "name",
-      });
-
-      setClasses(classesRes);
-    } catch (err) {
-      console.error(err);
+  async function loadStudents() {
+    const res = await fetch("/api/students");
+    const data = await res.json();
+    if (res.ok) {
+      setStudents(data);
     }
   }
 
   async function handleAddStudent(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!studentName || !selectedClass) {
-      alert("أدخل اسم الطالب واختر الفصل");
+    if (!studentName) {
+      alert("أدخل اسم الطالب");
       return;
     }
 
-    if (currentStudents >= maxStudents) {
-      alert("❌ تم تجاوز الحد الأقصى للطلاب في باقتك");
-      return;
-    }
+    setLoading(true);
 
-    try {
-      setLoading(true);
-
-      await pb.collection("students").create({
+    const res = await fetch("/api/students", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
         name: studentName,
-        schoolId: schoolId,
-        classId: selectedClass,
-        totalPoints: 0,
-      });
+        classId: selectedClass || null,
+      }),
+    });
 
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || "حدث خطأ");
+    } else {
       alert("✅ تمت إضافة الطالب بنجاح");
-
       setStudentName("");
       setSelectedClass("");
-
-      await loadInitialData();
-    } catch (err) {
-      console.error(err);
-      alert("حدث خطأ أثناء إضافة الطالب");
-    } finally {
-      setLoading(false);
+      loadStudents();
     }
+
+    setLoading(false);
   }
 
-  const remaining = maxStudents - currentStudents;
-  const nearingLimit = remaining <= 5;
-
   return (
-    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
+    <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">
-        إدارة الفصول والطلاب
+        إدارة الطلاب
       </h1>
 
-      {/* لوحة معلومات الباقة */}
-      <div className="border p-4 rounded mb-6 bg-gray-50">
-        <h2 className="font-bold mb-2">معلومات الاشتراك</h2>
+      <form onSubmit={handleAddStudent} className="border p-4 rounded mb-8">
+        <h2 className="font-bold mb-4">إضافة طالب</h2>
 
-        <div>الباقة: <strong>{planName}</strong></div>
-        <div>عدد الطلاب: {currentStudents} / {maxStudents}</div>
-
-        {nearingLimit && (
-          <div className="text-red-600 font-bold mt-2">
-            ⚠ أنت قريب من الحد الأقصى للطلاب
-          </div>
-        )}
-      </div>
-
-      {/* إضافة طالب */}
-      <form
-        onSubmit={handleAddStudent}
-        className="border p-4 rounded mb-6"
-      >
         <input
           type="text"
+          className="border p-2 w-full mb-4 rounded"
           placeholder="اسم الطالب"
           value={studentName}
           onChange={(e) => setStudentName(e.target.value)}
-          className="border p-2 w-full mb-3 rounded"
+          required
         />
-
-        <select
-          value={selectedClass}
-          onChange={(e) => setSelectedClass(e.target.value)}
-          className="border p-2 w-full mb-4 rounded"
-        >
-          <option value="">اختر الفصل</option>
-          {classes.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
 
         <button
           type="submit"
           disabled={loading}
           className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
-          {loading ? "جاري الإضافة..." : "إضافة الطالب"}
+          {loading ? "جارٍ الإضافة..." : "إضافة الطالب"}
         </button>
       </form>
+
+      <h2 className="font-bold mb-4">قائمة الطلاب</h2>
+
+      <table className="w-full border text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2 text-right">
+              اسم الطالب
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {students.map((s) => (
+            <tr key={s.id}>
+              <td className="border p-2">{s.name}</td>
+            </tr>
+          ))}
+
+          {students.length === 0 && (
+            <tr>
+              <td className="border p-4 text-center text-gray-500">
+                لا يوجد طلاب بعد
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import PocketBase from "pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
 import { jsPDF } from "jspdf";
 
 export async function GET(
@@ -7,7 +7,14 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
+    const pb = await getServerPB(); // ✅ داخل الدالة
+
+    if (!pb.authStore.model) {
+      return NextResponse.json(
+        { error: "غير مصرح" },
+        { status: 401 }
+      );
+    }
 
     const { id } = params;
 
@@ -48,7 +55,7 @@ export async function GET(
       },
     });
 
-  } catch {
+  } catch (err) {
     return NextResponse.json(
       { error: "Invoice not found" },
       { status: 404 }

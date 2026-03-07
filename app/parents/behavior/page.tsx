@@ -1,10 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PocketBase from "pocketbase";
 import Header from "@/app/components/Header";
-
-const pb = new PocketBase("http://127.0.0.1:8090");
 
 type Student = {
   id: string;
@@ -35,23 +32,14 @@ export default function ParentBehaviorPage() {
   useEffect(() => {
     async function loadStudents() {
       try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+        const res = await fetch("/api/parents-students");
+        const data = await res.json();
 
-        const links = await pb.collection("parents_students").getFullList({
-          filter: `parent="${profile.id}"`,
-          expand: "student",
-        });
-
-        const list = links.map((l: any) => ({
-          id: l.expand.student.id,
-          name: l.expand.student.name,
-        }));
-
-        setStudents(list);
-        if (list.length > 0) {
-          setSelectedStudent(list[0].id);
+        if (res.ok) {
+          setStudents(data);
+          if (data.length > 0) {
+            setSelectedStudent(data[0].id);
+          }
         }
       } catch (e) {
         console.error(e);
@@ -69,21 +57,22 @@ export default function ParentBehaviorPage() {
       setLoading(true);
 
       try {
-        const res = await pb
-          .collection("student_behaviors")
-          .getFullList<StudentBehavior>({
-            filter: `student="${selectedStudent}"`,
-            expand: "behavior",
-            sort: "-date",
-          });
-
-        setBehaviors(res);
-
-        const total = res.reduce(
-          (sum, item) => sum + (item.points || 0),
-          0
+        const res = await fetch(
+          `/api/behavior-records?studentId=${selectedStudent}`
         );
-        setTotalPoints(total);
+
+        const data = await res.json();
+
+        if (res.ok) {
+          setBehaviors(data);
+
+          const total = data.reduce(
+            (sum: number, item: any) =>
+              sum + (item.points || 0),
+            0
+          );
+          setTotalPoints(total);
+        }
       } catch (e) {
         console.error(e);
       } finally {
@@ -101,7 +90,6 @@ export default function ParentBehaviorPage() {
       <div style={{ padding: 24 }} dir="rtl">
         <h2 style={{ marginBottom: 20 }}>⭐ سجل السلوك</h2>
 
-        {/* اختيار الطالب */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontWeight: 700 }}>👦 اختر الطالب:</label>
           <select
@@ -121,7 +109,6 @@ export default function ParentBehaviorPage() {
           </select>
         </div>
 
-        {/* مجموع النقاط */}
         <div
           style={{
             background: "#1976d2",
@@ -143,15 +130,10 @@ export default function ParentBehaviorPage() {
         )}
 
         {!loading && behaviors.length > 0 && (
-          <div
-            style={{
-              display: "grid",
-              gap: 14,
-            }}
-          >
+          <div style={{ display: "grid", gap: 14 }}>
             {behaviors.map((b) => {
               const isNegative =
-                b.expand?.behavior.category === "مخالف";
+                b.expand?.behavior?.category === "مخالف";
 
               return (
                 <div
@@ -168,7 +150,7 @@ export default function ParentBehaviorPage() {
                   }}
                 >
                   <strong>
-                    {b.expand?.behavior.name}
+                    {b.expand?.behavior?.name}
                   </strong>
 
                   <div style={{ marginTop: 4 }}>

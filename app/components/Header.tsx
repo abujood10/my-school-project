@@ -2,94 +2,133 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import PocketBase from "pocketbase";
+import { useRouter } from "next/navigation";
 
-const pb = new PocketBase("http://127.0.0.1:8090");
+type UserData = {
+  role: string;
+  name: string;
+  schoolName: string;
+};
 
 export default function Header() {
-  const [count, setCount] = useState<number>(0);
+  const [user, setUser] = useState<UserData | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    let unsub: (() => void) | null = null;
-
-    async function init() {
+    async function loadUser() {
       try {
-        // جلب بروفايل المستخدم
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-        const schoolId = profile.schoolId;
-
-        // جلب العدد الحالي
-        const res = await pb.collection("notifications").getList(1, 1, {
-          filter: `schoolId="${schoolId}" && read=false`,
-        });
-        setCount(res.totalItems || 0);
-
-        // الاشتراك اللحظي
-        unsub = await pb.collection("notifications").subscribe("*", (e) => {
-          const record = e.record;
-
-          // فقط إشعارات المدرسة + غير المقروءة
-          if (
-            record.schoolId === schoolId &&
-            record.read === false
-          ) {
-            setCount((prev) => prev + 1);
-          }
-
-          // لو تم تحديث إشعار إلى مقروء
-          if (
-            record.schoolId === schoolId &&
-            e.action === "update" &&
-            record.read === true
-          ) {
-            setCount((prev) => Math.max(prev - 1, 0));
-          }
-        });
-      } catch {
-        // تجاهل
-      }
+        const res = await fetch("/api/me");
+        const data = await res.json();
+        if (res.ok) {
+          setUser(data);
+        }
+      } catch {}
     }
 
-    init();
-
-    return () => {
-      if (unsub) unsub();
-    };
+    loadUser();
   }, []);
+
+  async function logout() {
+    await fetch("/api/logout", { method: "POST" });
+    router.push("/login");
+  }
+
+  function renderLinks() {
+    if (!user) return null;
+
+    switch (user.role) {
+      case "super_admin":
+        return (
+          <>
+            <Link href="/super-admin">لوحة التحكم</Link>
+          </>
+        );
+
+      case "school_admin":
+        return (
+          <>
+            <Link href="/school-admin">لوحة المدرسة</Link>
+            <Link href="/school-admin/students">الطلاب</Link>
+            <Link href="/school-admin/teachers">المعلمون</Link>
+          </>
+        );
+
+      case "teacher":
+        return (
+          <>
+            <Link href="/teacher">لوحة المعلم</Link>
+            <Link href="/teacher/lessons">الخطة الأسبوعية</Link>
+          </>
+        );
+
+      case "parent":
+        return (
+          <>
+            <Link href="/parents">لوحة ولي الأمر</Link>
+            <Link href="/parents/behavior">السلوك</Link>
+            <Link href="/parents/attendance">الحضور</Link>
+          </>
+        );
+
+      case "vice_principal":
+        return (
+          <>
+            <Link href="/vice-principal">لوحة الوكيل</Link>
+            <Link href="/vice-principal/behaviors">السلوك</Link>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  }
 
   return (
     <header
       style={{
+        background: "#111827",
+        color: "#fff",
+        padding: "12px 24px",
         display: "flex",
         justifyContent: "space-between",
-        padding: "12px 16px",
-        borderBottom: "1px solid #eee",
+        alignItems: "center",
       }}
     >
-      <strong>بوابة ولي الأمر</strong>
+      <div>
+        <strong>
+          {user?.schoolName || "نظام المدارس"}
+        </strong>
+      </div>
 
-      <Link href="/parents/notifications" style={{ position: "relative" }}>
-        🔔
-        {count > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: -6,
-              right: -10,
-              background: "red",
-              color: "white",
-              borderRadius: "50%",
-              padding: "2px 6px",
-              fontSize: 12,
-            }}
-          >
-            {count}
+      <nav
+        style={{
+          display: "flex",
+          gap: 20,
+          alignItems: "center",
+        }}
+      >
+        {renderLinks()}
+
+        {user && (
+          <span style={{ fontSize: 14 }}>
+            👤 {user.name}
           </span>
         )}
-      </Link>
+
+        <button
+          onClick={logout}
+          style={{
+            background: "#ef4444",
+            border: "none",
+            padding: "6px 12px",
+            borderRadius: 6,
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          خروج
+        </button>
+      </nav>
     </header>
   );
 }
