@@ -18,9 +18,7 @@ export default function LoginPage() {
     try {
       const res = await fetch("/api/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
 
@@ -30,23 +28,36 @@ export default function LoginPage() {
         throw new Error(data.message || "فشل تسجيل الدخول");
       }
 
-      // 🔥 التوجيه حسب الدور
-      switch (data.role) {
-        case "super_admin":
-          router.push("/super-admin");
-          break;
-        case "school_admin":
-          router.push("/school-admin");
-          break;
-        case "teacher":
-          router.push("/teacher");
-          break;
-        case "parent":
-          router.push("/parents");
-          break;
-        default:
-          throw new Error("الدور غير معروف");
+      const role = String(data.role).trim();
+
+      if (role === "super_admin") {
+        router.push("/super-admin");
+        return;
       }
+
+      if (role === "school_admin") {
+        router.push("/school-admin");
+        return;
+      }
+
+      if (role === "teacher") {
+        router.push("/teacher");
+        return;
+      }
+
+      if (role === "parent") {
+        router.push("/parents");
+        return;
+      }
+
+      if (role === "vice_principal") {
+        router.push("/vice-principal");
+        return;
+      }
+
+      // إذا وصلنا هنا
+      console.error("Unknown role:", role);
+      throw new Error("الدور غير معروف");
 
     } catch (err: any) {
       setError(err.message || "حدث خطأ أثناء تسجيل الدخول");
@@ -70,46 +81,36 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
 
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
-              البريد الإلكتروني
-            </label>
-            <input
-              type="email"
-              placeholder="example@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="البريد الإلكتروني"
+            required
+            className="w-full p-3 border rounded-lg"
+          />
 
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">
-              كلمة المرور
-            </label>
-            <input
-              type="password"
-              placeholder="********"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="كلمة المرور"
+            required
+            className="w-full p-3 border rounded-lg"
+          />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg"
           >
-            {loading ? "جاري تسجيل الدخول..." : "دخول"}
+            {loading ? "جاري الدخول..." : "دخول"}
           </button>
 
         </form>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm p-3 rounded-lg text-center">
+          <div className="text-red-600 text-sm text-center">
             {error}
           </div>
         )}
