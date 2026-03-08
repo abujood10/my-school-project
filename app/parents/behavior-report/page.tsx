@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PocketBase from "pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 
-const pb = new PocketBase("http://127.0.0.1:8090");
+
 
 type BehaviorRecord = {
   id: string;

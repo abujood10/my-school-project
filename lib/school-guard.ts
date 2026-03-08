@@ -1,4 +1,5 @@
-import pb from "@/lib/pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 
 export async function getCurrentProfile() {
   if (!pb.authStore.model) {

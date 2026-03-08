@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import pb from "@/lib/pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 import { useAuth } from "@/lib/AuthContext";
 
 export default function SchoolSettingsPage() {

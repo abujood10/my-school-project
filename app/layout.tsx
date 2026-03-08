@@ -1,6 +1,7 @@
 import "./globals.css";
 import { headers } from "next/headers";
-import pb from "@/lib/pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 import ThemeProvider from "./components/ThemeProvider"; // 👈 هذا هو التعديل
 
 export default async function RootLayout({

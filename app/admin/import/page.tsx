@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import * as XLSX from "xlsx";
-import PocketBase from "pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 
-const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
+
 
 type Row = {
   student_name: string;

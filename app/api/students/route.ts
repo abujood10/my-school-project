@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import pb from "@/lib/pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 
 /* ========================================
    GET STUDENTS (معزول حسب المدرسة)

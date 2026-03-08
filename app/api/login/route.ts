@@ -1,54 +1,56 @@
 import { NextResponse } from "next/server";
-import { createPB } from "@/lib/pocketbase";
+import PocketBase from "pocketbase";
 
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
 
-    const pb = createPB();
-
-    const authData = await pb
-      .collection("users")
-      .authWithPassword(email, password);
-
-    let role = null;
-
-    // أولاً حاول جلب profile
-    try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(
-          `user="${authData.record.id}"`
-        );
-
-      role = profile.role;
-    } catch {
-      // إذا لم يوجد profile
-      role = authData.record.role || null;
-    }
-
-    if (!role) {
+    if (!email || !password) {
       return NextResponse.json(
-        { message: "الدور غير معروف" },
+        { message: "بيانات ناقصة" },
         { status: 400 }
       );
     }
 
-    const res = NextResponse.json({ role });
+    const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
-    res.cookies.set("pb_auth", pb.authStore.exportToCookie(), {
-      httpOnly: true,
-      secure: true,
-      sameSite: "strict",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+    // تسجيل الدخول
+    const authData = await pb
+      .collection("users")
+      .authWithPassword(email, password);
+
+    if (!authData?.record) {
+      return NextResponse.json(
+        { message: "فشل تسجيل الدخول" },
+        { status: 401 }
+      );
+    }
+
+    const user = authData.record;
+
+    if (!user.isActive) {
+      return NextResponse.json(
+        { message: "الحساب غير مفعل" },
+        { status: 403 }
+      );
+    }
+
+    if (!user.role) {
+      return NextResponse.json(
+        { message: "لم يتم تعيين دور للحساب" },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      role: user.role,
+      userId: user.id,
     });
 
-    return res;
-
-  } catch {
+  } catch (err: any) {
     return NextResponse.json(
-      { message: "بيانات غير صحيحة" },
+      { message: err.message || "خطأ في تسجيل الدخول" },
       { status: 400 }
     );
   }

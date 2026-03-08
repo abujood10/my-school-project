@@ -1,135 +1,126 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import pb from "@/lib/pocketbase";
-import { useAuth } from "@/lib/AuthContext";
 
-export default function CreateSchoolAdminPage() {
-  const { profile, loading } = useAuth();
-  const role = profile?.role;
+type School = {
+  id: string;
+  name: string;
+  subdomain: string;
+  status: string;
+  created: string;
+};
 
-  const [schools, setSchools] = useState<any[]>([]);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+export default function SuperAdminPage() {
+  const [schools, setSchools] = useState<School[]>([]);
+  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
-  const [schoolId, setSchoolId] = useState("");
-  const [msg, setMsg] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [subdomain, setSubdomain] = useState("");
+
+  async function fetchSchools() {
+    try {
+      const res = await fetch("/api/schools");
+      const data = await res.json();
+      setSchools(data.items || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createSchool() {
+    if (!name || !subdomain) return;
+
+    await fetch("/api/schools", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        subdomain,
+        status: "active",
+      }),
+    });
+
+    setName("");
+    setSubdomain("");
+    fetchSchools();
+  }
 
   useEffect(() => {
-    if (role === "super_admin") {
-      loadSchools();
-    }
-  }, [role]);
-
-  async function loadSchools() {
-    try {
-      const res = await pb.collection("schools").getFullList();
-      setSchools(res);
-    } catch {
-      setMsg("فشل تحميل المدارس");
-    }
-  }
-
-  if (loading) return <p>جاري التحميل...</p>;
-  if (role !== "super_admin") return <p>غير مصرح</p>;
-
-  async function createSchoolAdmin() {
-    if (!email || !password || !schoolId || !name) {
-      setMsg("يرجى تعبئة جميع الحقول");
-      return;
-    }
-
-    setSaving(true);
-    setMsg("");
-
-    try {
-      // 1️⃣ إنشاء المستخدم
-      const user = await pb.collection("users").create({
-        email,
-        password,
-        passwordConfirm: password,
-        emailVisibility: true,
-      });
-
-      // 2️⃣ إنشاء ملفه (profile)
-      await pb.collection("profiles").create({
-        user: user.id,
-        role: "school_admin",
-        schoolId,
-        name,
-      });
-
-      setMsg("✅ تم إنشاء مدير المدرسة بنجاح");
-      setEmail("");
-      setPassword("");
-      setName("");
-      setSchoolId("");
-    } catch (err: any) {
-      setMsg(err?.message || "حدث خطأ");
-    } finally {
-      setSaving(false);
-    }
-  }
+    fetchSchools();
+  }, []);
 
   return (
-    <div style={{ maxWidth: 500, margin: "40px auto" }}>
-      <h2>إنشاء مدير مدرسة</h2>
+    <div className="p-8 space-y-8">
 
-      <input
-        placeholder="اسم المدير"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        style={inputStyle}
-      />
+      <h1 className="text-2xl font-bold">
+        👑 إدارة المدارس
+      </h1>
 
-      <input
-        placeholder="البريد الإلكتروني"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={inputStyle}
-      />
+      {/* إضافة مدرسة */}
+      <div className="bg-white p-6 rounded-xl shadow-md space-y-4 max-w-xl">
 
-      <input
-        type="password"
-        placeholder="كلمة المرور"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={inputStyle}
-      />
+        <h2 className="font-semibold text-lg">إضافة مدرسة جديدة</h2>
 
-      <select
-        value={schoolId}
-        onChange={(e) => setSchoolId(e.target.value)}
-        style={inputStyle}
-      >
-        <option value="">اختر المدرسة</option>
-        {schools.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name}
-          </option>
-        ))}
-      </select>
+        <input
+          type="text"
+          placeholder="اسم المدرسة"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full border p-2 rounded"
+        />
 
-      <button onClick={createSchoolAdmin} disabled={saving} style={btnStyle}>
-        {saving ? "جاري الإنشاء..." : "إنشاء المدير"}
-      </button>
+        <input
+          type="text"
+          placeholder="subdomain (مثال: school1)"
+          value={subdomain}
+          onChange={(e) => setSubdomain(e.target.value)}
+          className="w-full border p-2 rounded"
+        />
 
-      {msg && <p>{msg}</p>}
+        <button
+          onClick={createSchool}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          إنشاء المدرسة
+        </button>
+      </div>
+
+      {/* عرض المدارس */}
+      <div className="bg-white p-6 rounded-xl shadow-md">
+
+        <h2 className="font-semibold text-lg mb-4">المدارس المسجلة</h2>
+
+        {loading ? (
+          <p>جاري التحميل...</p>
+        ) : schools.length === 0 ? (
+          <p>لا توجد مدارس حالياً</p>
+        ) : (
+          <table className="w-full border">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="p-2 border">المدرسة</th>
+                <th className="p-2 border">Subdomain</th>
+                <th className="p-2 border">الحالة</th>
+                <th className="p-2 border">تاريخ الإنشاء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schools.map((school) => (
+                <tr key={school.id}>
+                  <td className="p-2 border">{school.name}</td>
+                  <td className="p-2 border">{school.subdomain}</td>
+                  <td className="p-2 border">{school.status}</td>
+                  <td className="p-2 border">
+                    {new Date(school.created).toLocaleDateString("ar-SA")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: 10,
-  marginBottom: 10,
-};
-
-const btnStyle: React.CSSProperties = {
-  width: "100%",
-  padding: 12,
-  background: "#000",
-  color: "#fff",
-  cursor: "pointer",
-};

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import PocketBase from "pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 import Header from "@/app/components/Header";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-const pb = new PocketBase("http://127.0.0.1:8090");
+
 
 type Student = {
   id: string;

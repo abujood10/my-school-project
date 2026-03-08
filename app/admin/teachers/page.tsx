@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PocketBase from "pocketbase";
+import { getServerPB } from "@/lib/serverAuth";
+const pb = await getServerPB();
 import Header from "@/app/components/Header";
 
-const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
+
 
 type Teacher = {
   id: string;

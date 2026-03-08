@@ -1,14 +1,11 @@
 import PocketBase from "pocketbase";
 
-const pbUrl = process.env.NEXT_PUBLIC_PB_URL;
+export function createPB(authCookie?: string) {
+  const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
-if (!pbUrl) {
-  throw new Error("NEXT_PUBLIC_PB_URL is not defined");
+  if (authCookie) {
+    pb.authStore.loadFromCookie(authCookie);
+  }
+
+  return pb;
 }
-
-const pb = new PocketBase(pbUrl);
-
-// مهم جدًا في بيئة Next
-pb.autoCancellation(false);
-
-export default pb;
