@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 
 type Plan = {
   id: string;
@@ -13,78 +11,49 @@ type Plan = {
 
 export default function SubscribePage() {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlans();
   }, []);
 
   async function loadPlans() {
-    const res = await pb.collection("plans").getFullList<Plan>({
-      sort: "price",
-    });
-    setPlans(res);
+    try {
+      const res = await fetch("/api/plans");
+      const data = await res.json();
+      if (!res.ok) return;
+      setPlans(data.plans || []);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleSubscribe(plan: Plan) {
-    setLoading(true);
+    setLoadingPlanId(plan.id);
 
     try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`, {
-          expand: "schoolId",
-        });
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ planId: plan.id }),
+      });
 
-      const school = profile.expand?.schoolId;
+      const data = await res.json();
 
-      if (!school) {
-        alert("لم يتم العثور على مدرسة مرتبطة");
+      if (!res.ok) {
+        alert(data.message || "حدث خطأ أثناء الاشتراك");
         return;
       }
 
-      // إنشاء عملية دفع pending
-      const payment = await pb.collection("payments").create({
-        school: school.id,
-        plan: plan.id,
-        amount: plan.price,
-        status: "pending",
-        createdBy: profile.id,
-      });
-
-      // 🔹 هنا سنحاكي نجاح الدفع (مؤقتًا)
-      await simulatePaymentSuccess(payment.id, school.id, plan.id);
-
       alert("✅ تم الاشتراك بنجاح");
-
     } catch (err) {
       console.error(err);
       alert("حدث خطأ أثناء الاشتراك");
     } finally {
-      setLoading(false);
+      setLoadingPlanId(null);
     }
-  }
-
-  async function simulatePaymentSuccess(
-    paymentId: string,
-    schoolId: string,
-    planId: string
-  ) {
-    // تحديث الدفع
-    await pb.collection("payments").update(paymentId, {
-      status: "paid",
-      paidAt: new Date(),
-    });
-
-    // تفعيل المدرسة
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-    await pb.collection("schools").update(schoolId, {
-      status: "active",
-      plan: planId,
-      expiresAt: nextMonth,
-    });
   }
 
   return (
@@ -111,10 +80,12 @@ export default function SubscribePage() {
 
             <button
               onClick={() => handleSubscribe(plan)}
-              disabled={loading}
-              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+              disabled={loadingPlanId === plan.id}
+              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? "جارٍ المعالجة..." : "اشترك الآن"}
+              {loadingPlanId === plan.id
+                ? "جارٍ المعالجة..."
+                : "اشترك الآن"}
             </button>
           </div>
         ))}

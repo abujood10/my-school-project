@@ -1,13 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-import { useAuth } from "@/lib/AuthContext";
 
 export default function SchoolSettingsPage() {
-  const { profile, loading } = useAuth();
-  const role = profile?.role;
+  const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
 
   const [school, setSchool] = useState<any>(null);
   const [name, setName] = useState("");
@@ -19,26 +16,29 @@ export default function SchoolSettingsPage() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    if (profile?.schoolId) {
-      loadSchool(profile.schoolId);
-    }
-  }, [profile]);
+    loadSchool();
+  }, []);
 
-  async function loadSchool(schoolId: string) {
+  async function loadSchool() {
     try {
-      const s = await pb.collection("schools").getOne(schoolId);
-      setSchool(s);
-      setName(s.name ?? "");
-      setContactEmail(s.contactEmail ?? "");
-      setContactPhone(s.contactPhone ?? "");
-      setDescription(s.description ?? "");
-    } catch {
-      setMsg("حدث خطأ أثناء تحميل بيانات المدرسة");
+      const res = await fetch("/api/admin/school-settings");
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message);
+
+      setSchool(data.school);
+      setName(data.school?.name ?? "");
+      setContactEmail(data.school?.contactEmail ?? "");
+      setContactPhone(data.school?.contactPhone ?? "");
+      setDescription(data.school?.description ?? "");
+      setAuthorized(true);
+    } catch (e: any) {
+      setMsg(e.message || "غير مصرح");
+      setAuthorized(false);
+    } finally {
+      setLoading(false);
     }
   }
-
-  if (loading) return <p>جاري التحميل...</p>;
-  if (role !== "school_admin") return <p>غير مصرح</p>;
 
   async function saveSettings() {
     if (!school) return;
@@ -57,16 +57,25 @@ export default function SchoolSettingsPage() {
         formData.append("logo", logo);
       }
 
-      await pb.collection("schools").update(school.id, formData);
+      const res = await fetch("/api/admin/school-settings", {
+        method: "PUT",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
       setMsg("✅ تم حفظ الإعدادات بنجاح");
       setLogo(null);
-    } catch {
-      setMsg("حدث خطأ أثناء الحفظ");
+    } catch (e: any) {
+      setMsg(e.message || "حدث خطأ أثناء الحفظ");
     } finally {
       setSaving(false);
     }
   }
+
+  if (loading) return <p>جاري التحميل...</p>;
+  if (!authorized) return <p>غير مصرح</p>;
 
   return (
     <div style={{ maxWidth: 600, margin: "40px auto" }}>

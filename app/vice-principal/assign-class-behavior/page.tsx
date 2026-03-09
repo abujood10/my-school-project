@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -32,31 +28,25 @@ export default function AssignClassBehaviorPage() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+        const res = await fetch("/api/behavior/class-init");
+        const data = await res.json();
+        if (!res.ok) return;
 
-        const schoolId = profile.schoolId;
+        const studentsData: Student[] = Array.isArray(data.students)
+          ? data.students
+          : [];
 
-        const studentsRes = await pb
-          .collection("students")
-          .getFullList<Student>({
-            filter: `school="${schoolId}"`,
-            sort: "class",
-          });
+        const behaviorsData: Behavior[] = Array.isArray(data.behaviors)
+          ? data.behaviors
+          : [];
 
-        const behaviorsRes = await pb
-          .collection("behavior_definitions")
-          .getFullList<Behavior>({
-            filter: `school="${schoolId}" && active=true`,
-          });
+        setStudents(studentsData);
+        setBehaviors(behaviorsData);
 
         const uniqueClasses = Array.from(
-          new Set(studentsRes.map((s) => s.class))
+          new Set(studentsData.map((s) => s.class))
         );
 
-        setStudents(studentsRes);
-        setBehaviors(behaviorsRes);
         setClasses(uniqueClasses);
       } catch (e) {
         console.error(e);
@@ -76,32 +66,28 @@ export default function AssignClassBehaviorPage() {
     setMsg("");
 
     try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-      const schoolId = profile.schoolId;
-
-      const behavior = behaviors.find((b) => b.id === selectedBehavior);
-      if (!behavior) return;
-
-      const classStudents = students.filter(
-        (s) => s.class === selectedClass
-      );
-
-      for (const student of classStudents) {
-        await pb.collection("student_behaviors").create({
-          student: student.id,
-          behavior: behavior.id,
-          points: behavior.points,
+      const res = await fetch("/api/behavior/assign-class", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          className: selectedClass,
+          behaviorId: selectedBehavior,
           note,
-          school: schoolId,
-          created_by: profile.id,
-          date: new Date().toISOString(),
-        });
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMsg(data.message || "❌ حدث خطأ أثناء التسجيل");
+        return;
       }
 
-      setMsg(`✅ تم تسجيل السلوك لعدد ${classStudents.length} طالب`);
+      setMsg(
+        `✅ تم تسجيل السلوك لعدد ${data.count || 0} طالب`
+      );
       setNote("");
     } catch (e) {
       console.error(e);
@@ -135,8 +121,14 @@ export default function AssignClassBehaviorPage() {
             🏫 اختر الفصل
             <select
               value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
+              onChange={(e) =>
+                setSelectedClass(e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: 8,
+                marginTop: 4,
+              }}
             >
               <option value="">-- اختر --</option>
               {classes.map((c) => (
@@ -151,8 +143,14 @@ export default function AssignClassBehaviorPage() {
             ⭐ اختر السلوك
             <select
               value={selectedBehavior}
-              onChange={(e) => setSelectedBehavior(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
+              onChange={(e) =>
+                setSelectedBehavior(e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: 8,
+                marginTop: 4,
+              }}
             >
               <option value="">-- اختر --</option>
               {behaviors.map((b) => (
@@ -168,7 +166,11 @@ export default function AssignClassBehaviorPage() {
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
+              style={{
+                width: "100%",
+                padding: 8,
+                marginTop: 4,
+              }}
             />
           </label>
 
@@ -185,11 +187,18 @@ export default function AssignClassBehaviorPage() {
               cursor: "pointer",
             }}
           >
-            {loading ? "جارٍ التسجيل..." : "تسجيل السلوك للفصل"}
+            {loading
+              ? "جارٍ التسجيل..."
+              : "تسجيل السلوك للفصل"}
           </button>
 
           {msg && (
-            <div style={{ marginTop: 10, fontWeight: 600 }}>
+            <div
+              style={{
+                marginTop: 10,
+                fontWeight: 600,
+              }}
+            >
               {msg}
             </div>
           )}

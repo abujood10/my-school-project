@@ -1,21 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type BehaviorRecord = {
   id: string;
   degree: number;
   note?: string;
-  status: string;
-  expand: {
-    student: { id: string; name: string };
-    behavior: { id: string; name: string };
-  };
+  studentName: string;
+  behaviorName: string;
 };
 
 export default function ApproveBehaviorPage() {
@@ -29,15 +22,11 @@ export default function ApproveBehaviorPage() {
 
   async function loadPending() {
     try {
-      const res = await pb.collection("behavior_records").getFullList<
-        BehaviorRecord
-      >({
-        filter: `status="pending"`,
-        expand: "student,behavior",
-        sort: "-createdAt",
-      });
+      const res = await fetch("/api/behavior/pending");
+      const data = await res.json();
+      if (!res.ok) return;
 
-      setRecords(res);
+      setRecords(data.records || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -47,16 +36,19 @@ export default function ApproveBehaviorPage() {
 
   async function approve(id: string, degree: number) {
     try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-      await pb.collection("behavior_records").update(id, {
-        status: "approved",
-        degree: degree,
-        approvedBy: profile.id,
-        approvedAt: new Date().toISOString(),
+      const res = await fetch("/api/behavior/approve", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id, degree }),
       });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.message || "❌ خطأ أثناء الاعتماد");
+        return;
+      }
 
       setMsg("✅ تم الاعتماد");
       loadPending();
@@ -68,15 +60,19 @@ export default function ApproveBehaviorPage() {
 
   async function reject(id: string) {
     try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-      await pb.collection("behavior_records").update(id, {
-        status: "rejected",
-        rejectedBy: profile.id,
-        rejectedAt: new Date().toISOString(),
+      const res = await fetch("/api/behavior/reject", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id }),
       });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.message || "حدث خطأ");
+        return;
+      }
 
       setMsg("❌ تم الرفض");
       loadPending();
@@ -84,6 +80,14 @@ export default function ApproveBehaviorPage() {
       console.error(e);
       setMsg("حدث خطأ");
     }
+  }
+
+  function updateDegree(id: string, value: number) {
+    setRecords((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, degree: value } : r
+      )
+    );
   }
 
   return (
@@ -111,20 +115,18 @@ export default function ApproveBehaviorPage() {
             }}
           >
             <div style={{ fontWeight: 700 }}>
-              👦 {r.expand.student.name}
+              👦 {r.studentName}
             </div>
 
-            <div>
-              ⭐ {r.expand.behavior.name}
-            </div>
+            <div>⭐ {r.behaviorName}</div>
 
             <div style={{ marginTop: 6 }}>
               الدرجة:
               <input
                 type="number"
-                defaultValue={r.degree}
+                value={r.degree}
                 onChange={(e) =>
-                  (r.degree = parseInt(e.target.value || "0"))
+                  updateDegree(r.id, Number(e.target.value))
                 }
                 style={{
                   width: 80,
@@ -140,7 +142,13 @@ export default function ApproveBehaviorPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                gap: 8,
+              }}
+            >
               <button
                 onClick={() => approve(r.id, r.degree)}
                 style={{

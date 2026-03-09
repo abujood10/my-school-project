@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
   name: string;
   class: string;
   totalPoints?: number;
+};
+
+type LeaderboardResponse = {
+  students?: Student[];
+  message?: string;
 };
 
 export default function LeaderboardPage() {
@@ -24,11 +25,16 @@ export default function LeaderboardPage() {
   // تحميل الفصول
   useEffect(() => {
     async function loadClasses() {
-      const res = await pb.collection("students").getFullList<Student>();
-      const uniqueClasses = Array.from(
-        new Set(res.map((s) => s.class).filter(Boolean))
-      );
-      setClasses(uniqueClasses);
+      try {
+        const res = await fetch("/api/leaderboard/classes");
+        const data = await res.json();
+
+        if (!res.ok) return;
+
+        setClasses(Array.isArray(data.classes) ? data.classes : []);
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     loadClasses();
@@ -41,16 +47,26 @@ export default function LeaderboardPage() {
     setMsg("");
 
     try {
-      const res = await pb.collection("students").getFullList<Student>({
-        filter: `class="${selectedClass}"`,
-      });
+      const res = await fetch(
+        `/api/leaderboard?class=${encodeURIComponent(selectedClass)}`
+      );
 
-      const sorted = res
-        .map((s) => ({
+      const data: LeaderboardResponse = await res.json();
+
+      if (!res.ok) {
+        setMsg(data.message || "حدث خطأ أثناء تحميل الترتيب");
+        return;
+      }
+
+      const sorted: Student[] = (data.students || [])
+        .map((s: Student) => ({
           ...s,
           totalPoints: s.totalPoints || 0,
         }))
-        .sort((a, b) => b.totalPoints! - a.totalPoints!);
+        .sort(
+          (a: Student, b: Student) =>
+            (b.totalPoints || 0) - (a.totalPoints || 0)
+        );
 
       setStudents(sorted);
     } catch (e) {
@@ -68,19 +84,25 @@ export default function LeaderboardPage() {
     }
 
     try {
-      const certificateId = crypto.randomUUID();
+      const res = await fetch(
+        "/api/leaderboard/generate-certificates",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            className: selectedClass,
+            topStudents: students.slice(0, 3),
+          }),
+        }
+      );
 
-      for (let i = 0; i < Math.min(3, students.length); i++) {
-        const student = students[i];
+      const data = await res.json();
 
-        await pb.collection("certificates").create({
-          student: student.id,
-          class: selectedClass,
-          position: i + 1,
-          totalPoints: student.totalPoints,
-          certificateId,
-          createdAt: new Date().toISOString(), // ✅ تم التعديل هنا
-        });
+      if (!res.ok) {
+        setMsg(data.message || "حدث خطأ أثناء إصدار الشهادات");
+        return;
       }
 
       setMsg("✅ تم إصدار شهادات الثلاثة الأوائل بنجاح");
@@ -99,12 +121,14 @@ export default function LeaderboardPage() {
 
         <div style={{ marginBottom: 16 }}>
           <label>اختر الفصل:</label>
+
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
             style={{ marginRight: 8, padding: 6 }}
           >
             <option value="">-- اختر الفصل --</option>
+
             {classes.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -143,6 +167,7 @@ export default function LeaderboardPage() {
         </div>
 
         {loading && <p>⏳ جاري التحميل...</p>}
+
         {msg && <p>{msg}</p>}
 
         {students.length > 0 && (
@@ -162,6 +187,7 @@ export default function LeaderboardPage() {
                 <th>المجموع الكلي</th>
               </tr>
             </thead>
+
             <tbody>
               {students.map((s, index) => (
                 <tr key={s.id}>

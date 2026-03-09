@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Lesson = {
   id: string;
@@ -22,19 +18,18 @@ export default function TeacherPage() {
 
   useEffect(() => {
     async function load() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      try {
+        const res = await fetch("/api/teacher/lessons");
+        const data = await res.json();
+        if (!res.ok) return;
 
-      setProfileId(profile.id);
-
-      const res = await pb.collection("lessons").getFullList<Lesson>({
-        filter: `schoolId="${profile.schoolId}"`,
-        sort: "day",
-      });
-
-      setLessons(res);
-      setLoading(false);
+        setProfileId(data.profileId);
+        setLessons(data.lessons || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
 
     load();
@@ -42,8 +37,22 @@ export default function TeacherPage() {
 
   async function deleteLesson(id: string) {
     if (!confirm("هل أنت متأكد من الحذف؟")) return;
-    await pb.collection("lessons").delete(id);
-    setLessons((prev) => prev.filter((l) => l.id !== id));
+
+    try {
+      const res = await fetch(`/api/teacher/lessons/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        alert("فشل الحذف");
+        return;
+      }
+
+      setLessons((prev) => prev.filter((l) => l.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("فشل الحذف");
+    }
   }
 
   return (
@@ -55,9 +64,7 @@ export default function TeacherPage() {
 
         {loading && <p>جاري التحميل...</p>}
 
-        {!loading && lessons.length === 0 && (
-          <p>لا توجد دروس</p>
-        )}
+        {!loading && lessons.length === 0 && <p>لا توجد دروس</p>}
 
         {!loading &&
           lessons.map((l) => (
@@ -73,13 +80,10 @@ export default function TeacherPage() {
               <strong>{l.title}</strong>
               <div>🕒 حصص: {l.periods.join(", ")}</div>
 
-              {/* الأزرار */}
               <div style={{ marginTop: 8 }}>
-                {l.teacherId === profileId && (
+                {l.teacherId === profileId ? (
                   <>
-                    <button style={{ marginLeft: 8 }}>
-                      ✏️ تعديل
-                    </button>
+                    <button style={{ marginLeft: 8 }}>✏️ تعديل</button>
 
                     <button
                       onClick={() => deleteLesson(l.id)}
@@ -88,9 +92,7 @@ export default function TeacherPage() {
                       🗑️ حذف
                     </button>
                   </>
-                )}
-
-                {l.teacherId !== profileId && (
+                ) : (
                   <span style={{ fontSize: 12, color: "#777" }}>
                     🔒 لا يمكنك تعديل هذا الدرس
                   </span>

@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-
-
 
 type Student = {
   id: string;
@@ -22,25 +18,19 @@ export default function LeaderboardPage() {
   const [schoolName, setSchoolName] = useState("");
   const [schoolLogo, setSchoolLogo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentStudent, setCurrentStudent] = useState<Student | null>(null);
+  const [currentPosition, setCurrentPosition] = useState<number | null>(null);
 
   const certificateRef = useRef<HTMLDivElement>(null);
 
-  // تحميل بيانات المدرسة
   useEffect(() => {
     async function loadSchool() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`, {
-          expand: "schoolId",
-        });
+      const res = await fetch("/api/school/info");
+      const data = await res.json();
+      if (!res.ok) return;
 
-      const school = profile.expand?.schoolId;
-      if (school) {
-        setSchoolName(school.name);
-        if (school.logo) {
-          setSchoolLogo(pb.files.getUrl(school, school.logo));
-        }
-      }
+      setSchoolName(data.name);
+      setSchoolLogo(data.logo || null);
     }
 
     loadSchool();
@@ -51,18 +41,19 @@ export default function LeaderboardPage() {
 
     setLoading(true);
 
-    const res = await pb.collection("students").getFullList<Student>({
-      filter: `class="${selectedClass}"`,
+    const res = await fetch("/api/leaderboard", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ className: selectedClass }),
     });
 
-    const sorted = res
-      .map((s) => ({
-        ...s,
-        totalPoints: s.totalPoints || 0,
-      }))
-      .sort((a, b) => b.totalPoints! - a.totalPoints!);
+    const data = await res.json();
+    if (res.ok) {
+      setStudents(data.students || []);
+    }
 
-    setStudents(sorted);
     setLoading(false);
   }
 
@@ -74,26 +65,28 @@ export default function LeaderboardPage() {
   }
 
   async function generateCertificate(student: Student, position: number) {
-    // منع التكرار
-    const existing = await pb.collection("certificates").getFullList({
-      filter: `student="${student.id}" && class="${selectedClass}"`,
+    const res = await fetch("/api/certificates/generate-leaderboard", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        studentId: student.id,
+        className: selectedClass,
+        position,
+      }),
     });
 
-    if (existing.length > 0) {
-      alert("تم إصدار شهادة لهذا الطالب مسبقًا");
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || "حدث خطأ");
       return;
     }
 
-    // حفظ الشهادة
-    await pb.collection("certificates").create({
-      student: student.id,
-      class: selectedClass,
-      position,
-      totalPoints: student.totalPoints,
-      createdAt: new Date().toISOString(),
-    });
+    setCurrentStudent(student);
+    setCurrentPosition(position);
 
-    // تصدير PDF
     setTimeout(async () => {
       if (!certificateRef.current) return;
 
@@ -126,9 +119,11 @@ export default function LeaderboardPage() {
           </button>
         </div>
 
+        {loading && <p>جاري التحميل...</p>}
+
         {students.slice(0, 3).map((s, index) => (
           <div key={s.id} style={{ marginBottom: 12 }}>
-            {index + 1} - {s.name} ({s.totalPoints} نقطة)
+            {index + 1} - {s.name} ({s.totalPoints || 0} نقطة)
             <button
               style={{ marginRight: 10 }}
               onClick={() => generateCertificate(s, index + 1)}
@@ -138,7 +133,6 @@ export default function LeaderboardPage() {
           </div>
         ))}
 
-        {/* تصميم الشهادة */}
         <div
           ref={certificateRef}
           style={{
@@ -157,6 +151,21 @@ export default function LeaderboardPage() {
 
           <h1>{schoolName}</h1>
           <h2>شهادة تميز سلوكي</h2>
+
+          {currentStudent && currentPosition && (
+            <>
+              <h3 style={{ marginTop: 30 }}>
+                الطالب: {currentStudent.name}
+              </h3>
+              <p>الفصل: {selectedClass}</p>
+              <p>
+                المركز: {currentPosition} {medal(currentPosition)}
+              </p>
+              <p>
+                مجموع النقاط: {currentStudent.totalPoints || 0}
+              </p>
+            </>
+          )}
         </div>
       </div>
     </>
