@@ -1,10 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 export default function TeacherFilesPage() {
   const [title, setTitle] = useState("");
@@ -18,22 +14,22 @@ export default function TeacherFilesPage() {
     setMsg("");
 
     try {
-      // المستخدم الحالي
-      const user = pb.authStore.model;
-      if (!user) throw new Error("غير مسجل دخول");
-
-      // جلب الـ profile
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${user.id}"`);
+      if (!file) throw new Error("يرجى اختيار ملف");
 
       const formData = new FormData();
       formData.append("title", title);
-      formData.append("file", file!);
-      formData.append("schoolId", profile.schoolId);
-      formData.append("teacherId", profile.id);
+      formData.append("file", file);
 
-      await pb.collection("files").create(formData);
+      const res = await fetch("/api/teacher/files", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "فشل رفع الملف");
+      }
 
       setMsg("✅ تم رفع الملف بنجاح");
       setTitle("");
@@ -46,7 +42,7 @@ export default function TeacherFilesPage() {
   }
 
   return (
-    <div style={{ maxWidth: 500, margin: "40px auto" }}>
+    <div style={{ maxWidth: 500, margin: "40px auto" }} dir="rtl">
       <h2>رفع ملف</h2>
 
       <form onSubmit={handleUpload}>
@@ -55,12 +51,14 @@ export default function TeacherFilesPage() {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           required
+          style={{ display: "block", marginBottom: 10, width: "100%" }}
         />
 
         <input
           type="file"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
           required
+          style={{ display: "block", marginBottom: 10 }}
         />
 
         <button disabled={loading}>
@@ -68,7 +66,7 @@ export default function TeacherFilesPage() {
         </button>
       </form>
 
-      {msg && <p>{msg}</p>}
+      {msg && <p style={{ marginTop: 10 }}>{msg}</p>}
     </div>
   );
 }

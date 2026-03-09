@@ -2,10 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 type Certificate = {
   id: string;
@@ -16,17 +12,12 @@ type Certificate = {
   totalPoints: number;
   medal: string;
   createdAt: string;
-  status: string;
-  expand?: {
-    school?: {
-      name: string;
-      logo?: string;
-    };
-  };
+  schoolName: string;
+  schoolLogo?: string | null;
 };
 
 export default function VerifyPage() {
-  const { code } = useParams();
+  const { code } = useParams<{ code: string }>();
   const [certificate, setCertificate] = useState<Certificate | null>(null);
   const [loading, setLoading] = useState(true);
   const [invalid, setInvalid] = useState(false);
@@ -34,17 +25,13 @@ export default function VerifyPage() {
   useEffect(() => {
     async function loadCertificate() {
       try {
-        const res = await pb.collection("certificates").getFirstListItem(
-          `verificationCode="${code}"`,
-          {
-            expand: "school",
-          }
-        );
+        const res = await fetch(`/api/certificates/verify/${code}`);
+        const data = await res.json();
 
-        if (res.status !== "active") {
+        if (!res.ok || data.status !== "active") {
           setInvalid(true);
         } else {
-          setCertificate(res as any);
+          setCertificate(data);
         }
       } catch {
         setInvalid(true);
@@ -75,48 +62,60 @@ export default function VerifyPage() {
     );
   }
 
-  const schoolLogo =
-    certificate.expand?.school?.logo &&
-    pb.files.getUrl(
-      certificate.expand.school,
-      certificate.expand.school.logo
-    );
-
   return (
     <div dir="rtl" style={wrapper}>
       <div style={card}>
-        {schoolLogo && (
+        {certificate.schoolLogo && (
           <img
-            src={schoolLogo}
+            src={certificate.schoolLogo}
             alt="شعار المدرسة"
             style={{ height: 80, marginBottom: 16 }}
           />
         )}
 
-        <h1 style={{ color: "#2e7d32" }}>✅ شهادة موثقة وصحيحة</h1>
+        <h1 style={{ color: "#2e7d32" }}>
+          ✅ شهادة موثقة وصحيحة
+        </h1>
 
         <h2 style={{ marginTop: 16 }}>
-          {certificate.expand?.school?.name}
+          {certificate.schoolName}
         </h2>
 
         <hr style={{ margin: "20px 0" }} />
 
-        <p><strong>اسم الطالب:</strong> {certificate.studentName}</p>
-        <p><strong>الصف:</strong> {certificate.className}</p>
-        <p><strong>الدرجة:</strong> {certificate.grade}</p>
-        <p><strong>إجمالي النقاط:</strong> {certificate.totalPoints}</p>
-        <p><strong>الميدالية:</strong> {certificate.medal}</p>
+        <p>
+          <strong>اسم الطالب:</strong> {certificate.studentName}
+        </p>
+        <p>
+          <strong>الصف:</strong> {certificate.className}
+        </p>
+        <p>
+          <strong>الدرجة:</strong> {certificate.grade}
+        </p>
+        <p>
+          <strong>إجمالي النقاط:</strong> {certificate.totalPoints}
+        </p>
+        <p>
+          <strong>الميدالية:</strong> {certificate.medal}
+        </p>
 
-        <p style={{ marginTop: 20, fontSize: 13, color: "#777" }}>
+        <p
+          style={{
+            marginTop: 20,
+            fontSize: 13,
+            color: "#777",
+          }}
+        >
           تاريخ الإصدار:{" "}
-          {new Date(certificate.createdAt).toLocaleDateString("ar-SA")}
+          {new Date(certificate.createdAt).toLocaleDateString(
+            "ar-SA"
+          )}
         </p>
       </div>
     </div>
   );
 }
 
-/* 🎨 تنسيق بسيط احترافي */
 const wrapper: React.CSSProperties = {
   minHeight: "100vh",
   display: "flex",

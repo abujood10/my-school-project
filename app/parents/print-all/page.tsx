@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 type Lesson = {
   id: string;
@@ -38,22 +34,14 @@ export default function PrintAllPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+        const res = await fetch("/api/parent/print-all");
+        const data = await res.json();
+        if (!res.ok) return;
 
-        const lessonsRes = await pb.collection("lessons").getFullList<Lesson>({
-          filter: `schoolId="${profile.schoolId}"`,
-          sort: "day",
-        });
-
-        const notifRes = await pb.collection("notifications").getFullList<Notification>({
-          filter: `schoolId="${profile.schoolId}"`,
-          sort: "-created",
-        });
-
-        setLessons(lessonsRes);
-        setNotifications(notifRes.slice(0, 10)); // آخر 10 إشعارات
+        setLessons(data.lessons || []);
+        setNotifications(data.notifications || []);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
@@ -65,12 +53,27 @@ export default function PrintAllPage() {
   if (loading) return <p>جاري التحضير للطباعة...</p>;
 
   return (
-    <div style={{ padding: 30, direction: "rtl", fontFamily: "system-ui, Arial" }}>
-      <h1 style={{ textAlign: "center" }}>📄 تقرير ولي الأمر</h1>
+    <div
+      style={{
+        padding: 30,
+        direction: "rtl",
+        fontFamily: "system-ui, Arial",
+      }}
+    >
+      <h1 style={{ textAlign: "center" }}>
+        📄 تقرير ولي الأمر
+      </h1>
 
-      {/* الخطة الأسبوعية */}
-      <h2 style={{ marginTop: 24 }}>📘 الخطة الأسبوعية</h2>
-      <table width="100%" border={1} cellPadding={8} style={{ borderCollapse: "collapse" }}>
+      <h2 style={{ marginTop: 24 }}>
+        📘 الخطة الأسبوعية
+      </h2>
+
+      <table
+        width="100%"
+        border={1}
+        cellPadding={8}
+        style={{ borderCollapse: "collapse" }}
+      >
         <thead style={{ background: "#f0f0f0" }}>
           <tr>
             <th>اليوم</th>
@@ -80,6 +83,7 @@ export default function PrintAllPage() {
             <th>ملاحظة</th>
           </tr>
         </thead>
+
         <tbody>
           {lessons.map((l) => (
             <tr key={l.id}>
@@ -93,9 +97,16 @@ export default function PrintAllPage() {
         </tbody>
       </table>
 
-      {/* الإشعارات */}
-      <h2 style={{ marginTop: 32 }}>🔔 آخر الإشعارات</h2>
-      <table width="100%" border={1} cellPadding={8} style={{ borderCollapse: "collapse" }}>
+      <h2 style={{ marginTop: 32 }}>
+        🔔 آخر الإشعارات
+      </h2>
+
+      <table
+        width="100%"
+        border={1}
+        cellPadding={8}
+        style={{ borderCollapse: "collapse" }}
+      >
         <thead style={{ background: "#f0f0f0" }}>
           <tr>
             <th>العنوان</th>
@@ -103,35 +114,37 @@ export default function PrintAllPage() {
             <th>التاريخ</th>
           </tr>
         </thead>
+
         <tbody>
           {notifications.map((n) => (
             <tr key={n.id}>
               <td>{n.title}</td>
               <td>{n.body}</td>
-              <td>{new Date(n.created).toLocaleDateString("ar-SA")}</td>
+              <td>
+                {new Date(n.created).toLocaleDateString("ar-SA")}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      {/* زر الطباعة */}
       <div style={{ marginTop: 30, textAlign: "center" }}>
         <button
           onClick={() => window.print()}
-          style={{ padding: "10px 20px", fontSize: 16, cursor: "pointer" }}
+          style={{
+            padding: "10px 20px",
+            fontSize: 16,
+            cursor: "pointer",
+          }}
         >
           🖨️ طباعة / حفظ PDF
         </button>
       </div>
 
-      {/* تحسين الطباعة */}
       <style jsx>{`
         @media print {
           button {
             display: none;
-          }
-          body {
-            background: white;
           }
         }
       `}</style>

@@ -1,21 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 type BehaviorRecord = {
   id: string;
   degree: number;
-  status: string;
+  behaviorName: string;
   date: string;
-  expand: {
-    behavior: {
-      name: string;
-    };
-  };
 };
 
 export default function BehaviorReportPage() {
@@ -27,40 +18,20 @@ export default function BehaviorReportPage() {
   useEffect(() => {
     async function load() {
       try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+        const res = await fetch("/api/parent/behavior-report");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
 
-        const links = await pb.collection("parents_students").getFullList({
-          filter: `parent="${profile.id}"`,
-        });
-
-        if (links.length === 0) return;
-
-        const studentIds = links.map((l: any) => `"${l.student}"`).join(",");
-
-        const res = await pb
-          .collection("behavior_records")
-          .getFullList<BehaviorRecord>({
-            filter: `student IN (${studentIds}) && status="approved"`,
-            expand: "behavior",
-          });
-
-        // ترتيب حسب الدرجة
-        const sorted = res.sort((a, b) => b.degree - a.degree);
+        const sorted = data.records.sort(
+          (a: BehaviorRecord, b: BehaviorRecord) =>
+            b.degree - a.degree
+        );
 
         setRecords(sorted);
-
-        const pos = sorted
-          .filter((r) => r.degree > 0)
-          .reduce((s, r) => s + r.degree, 0);
-
-        const neg = sorted
-          .filter((r) => r.degree < 0)
-          .reduce((s, r) => s + r.degree, 0);
-
-        setPositive(pos);
-        setNegative(neg);
+        setPositive(data.positive);
+        setNegative(data.negative);
+      } catch (e) {
+        console.error(e);
       } finally {
         setLoading(false);
       }
@@ -73,7 +44,9 @@ export default function BehaviorReportPage() {
 
   return (
     <div dir="rtl" style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <h2 style={{ marginBottom: 20 }}>📊 تقرير السلوك التفصيلي</h2>
+      <h2 style={{ marginBottom: 20 }}>
+        📊 تقرير السلوك التفصيلي
+      </h2>
 
       <button
         onClick={() => window.print()}
@@ -106,8 +79,7 @@ export default function BehaviorReportPage() {
             }}
           >
             <span>
-              {r.degree >= 0 ? "💚" : "❤️"}{" "}
-              {r.expand?.behavior?.name}
+              {r.degree >= 0 ? "💚" : "❤️"} {r.behaviorName}
             </span>
 
             <strong

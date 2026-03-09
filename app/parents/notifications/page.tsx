@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -37,22 +33,19 @@ export default function ParentsPage() {
 
   useEffect(() => {
     async function loadStudents() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      try {
+        const res = await fetch("/api/parent/students");
+        const data = await res.json();
+        if (!res.ok) return;
 
-      const links = await pb.collection("parents_students").getFullList({
-        filter: `parent="${profile.id}"`,
-        expand: "student",
-      });
+        setStudents(data.students);
 
-      const list = links.map((l: any) => ({
-        id: l.expand.student.id,
-        name: l.expand.student.name,
-      }));
-
-      setStudents(list);
-      if (list.length > 0) setSelectedStudent(list[0].id);
+        if (data.students.length > 0) {
+          setSelectedStudent(data.students[0].id);
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     loadStudents();
@@ -63,20 +56,27 @@ export default function ParentsPage() {
       if (!selectedStudent) return;
       setLoading(true);
 
-      const res = await pb.collection("lessons").getFullList<Lesson>({
-        filter: `studentId="${selectedStudent}"`,
-        sort: "day",
-      });
+      try {
+        const res = await fetch(
+          `/api/parent/weekly-plan?studentId=${selectedStudent}`
+        );
+        const data = await res.json();
+        if (!res.ok) return;
 
-      setLessons(res);
-      setLoading(false);
+        setLessons(data.lessons);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadLessons();
   }, [selectedStudent]);
 
-  // ✅ دالة تحميل PDF
   async function downloadPdf() {
+    if (!selectedStudent) return;
+
     const res = await fetch("/api/pdf/weekly-plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -99,7 +99,6 @@ export default function ParentsPage() {
       <Header />
 
       <div style={{ padding: 24 }} dir="rtl">
-        {/* اختيار الطالب */}
         <div style={{ marginBottom: 16 }}>
           <label>👦 اختر الطالب:</label>
           <select
@@ -115,7 +114,6 @@ export default function ParentsPage() {
           </select>
         </div>
 
-        {/* زر تحميل PDF */}
         <button onClick={downloadPdf} style={{ marginBottom: 20 }}>
           🖨️ تحميل الخطة الأسبوعية PDF
         </button>
@@ -132,7 +130,8 @@ export default function ParentsPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(280px, 1fr))",
               gap: 16,
             }}
           >

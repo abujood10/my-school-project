@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -26,11 +22,7 @@ type BehaviorRecord = {
   points: number;
   note?: string;
   date: string;
-  expand?: {
-    behavior?: {
-      name: string;
-    };
-  };
+  behaviorName?: string;
 };
 
 type AttendanceRecord = {
@@ -64,86 +56,47 @@ export default function ParentsPage() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔹 تحميل الطلاب
   useEffect(() => {
     async function loadStudents() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      const res = await fetch("/api/parent/dashboard");
+      const data = await res.json();
+      if (!res.ok) return;
 
-      const links = await pb.collection("parents_students").getFullList({
-        filter: `parent="${profile.id}"`,
-        expand: "student",
-      });
-
-      const list: Student[] = links.map((l: any) => ({
-        id: l.expand?.student?.id,
-        name: l.expand?.student?.name,
-      }));
-
-      setStudents(list);
-      if (list.length > 0) setSelectedStudent(list[0].id);
+      setStudents(data.students || []);
+      if (data.students?.length > 0) {
+        setSelectedStudent(data.students[0].id);
+      }
     }
 
     loadStudents();
   }, []);
 
-  // 🔹 تحميل الدروس
   useEffect(() => {
-    async function loadLessons() {
+    async function loadAll() {
       if (!selectedStudent) return;
 
       setLoading(true);
 
-      const res = await pb.collection("lessons").getFullList<Lesson>({
-        filter: `studentIds ~ "${selectedStudent}"`,
-        sort: "day",
+      const res = await fetch("/api/parent/student-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: selectedStudent }),
       });
 
-      setLessons(res);
+      const data = await res.json();
+      if (res.ok) {
+        setLessons(data.lessons || []);
+        setBehaviors(data.behaviors || []);
+        setAttendance(data.attendance || []);
+      }
+
       setLoading(false);
     }
 
-    loadLessons();
+    loadAll();
   }, [selectedStudent]);
 
-  // 🔹 تحميل السلوك
-  useEffect(() => {
-    async function loadBehaviors() {
-      if (!selectedStudent) return;
-
-      const res = await pb.collection("behavior_records").getFullList<BehaviorRecord>({
-        filter: `student="${selectedStudent}" && status="approved"`,
-        expand: "behavior",
-        sort: "-date",
-      });
-
-      setBehaviors(res);
-    }
-
-    loadBehaviors();
-  }, [selectedStudent]);
-
-  // 🔹 تحميل الحضور
-  useEffect(() => {
-    async function loadAttendance() {
-      if (!selectedStudent) return;
-
-      const res = await pb.collection("attendance_records").getFullList<AttendanceRecord>({
-        filter: `student="${selectedStudent}"`,
-        sort: "-date",
-      });
-
-      setAttendance(res);
-    }
-
-    loadAttendance();
-  }, [selectedStudent]);
-
-  // 🔹 حساب النقاط
   const totalPoints = behaviors.reduce((sum, b) => sum + (b.points || 0), 0);
-
-  // 🔹 حساب الغياب والتأخير
   const totalAbsent = attendance.filter((a) => a.type === "absent").length;
   const totalLate = attendance.filter((a) => a.type === "late").length;
 
@@ -155,8 +108,6 @@ export default function ParentsPage() {
       <Header />
 
       <div style={{ padding: 24 }} dir="rtl">
-
-        {/* اختيار الطالب */}
         <div style={{ marginBottom: 20 }}>
           <label style={{ fontWeight: 700 }}>👦 اختر الطالب:</label>
           <select
@@ -172,7 +123,6 @@ export default function ParentsPage() {
           </select>
         </div>
 
-        {/* 📘 الدروس */}
         <h2>📘 الخطة الأسبوعية</h2>
 
         {loading && <p>⏳ جاري التحميل...</p>}
@@ -189,7 +139,7 @@ export default function ParentsPage() {
               }}
             >
               <strong>{DAYS_LABEL[l.day]}</strong>
-              <div>🕒 {l.periods.join(", ")}</div>
+              <div>🕒 {l.periods?.join(", ")}</div>
               <div>📘 {l.title}</div>
               <div>📝 {l.homework || "—"}</div>
               <div>ℹ️ {l.note || "—"}</div>
@@ -197,20 +147,25 @@ export default function ParentsPage() {
           ))}
         </div>
 
-        {/* ⭐ السلوك */}
         <h2>⭐ سجل السلوك</h2>
 
-        <div style={{ background: "#f5f5f5", padding: 16, borderRadius: 12, marginBottom: 20 }}>
+        <div
+          style={{
+            background: "#f5f5f5",
+            padding: 16,
+            borderRadius: 12,
+            marginBottom: 20,
+          }}
+        >
           <strong>إجمالي النقاط:</strong> {totalPoints}
         </div>
 
         {behaviors.map((b) => (
           <div key={b.id} style={{ marginBottom: 8 }}>
-            ⭐ {b.expand?.behavior?.name || "سلوك"} — {b.points} نقطة
+            ⭐ {b.behaviorName || "سلوك"} — {b.points} نقطة
           </div>
         ))}
 
-        {/* 🚫 الحضور */}
         <h2 style={{ marginTop: 40 }}>🚫 الحضور والانضباط</h2>
 
         {exceededAbsence && (
@@ -238,12 +193,11 @@ export default function ParentsPage() {
 
         {attendance.map((a) => (
           <div key={a.id} style={{ marginBottom: 6 }}>
-            {a.type === "absent" ? "❌ غياب" : "⏰ تأخير"} —
+            {a.type === "absent" ? "❌ غياب" : "⏰ تأخير"} —{" "}
             {new Date(a.date).toLocaleDateString("ar-SA")}
             {a.note && ` — ${a.note}`}
           </div>
         ))}
-
       </div>
     </>
   );

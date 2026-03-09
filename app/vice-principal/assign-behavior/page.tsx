@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -31,28 +27,12 @@ export default function AssignBehaviorPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+        const res = await fetch("/api/behavior/init");
+        const data = await res.json();
+        if (!res.ok) return;
 
-        const schoolId = profile.schoolId;
-
-        const studentsRes = await pb
-          .collection("students")
-          .getFullList<Student>({
-            filter: `school="${schoolId}"`,
-            sort: "name",
-          });
-
-        const behaviorsRes = await pb
-          .collection("behavior_definitions")
-          .getFullList<Behavior>({
-            filter: `school="${schoolId}" && active=true`,
-            sort: "name",
-          });
-
-        setStudents(studentsRes);
-        setBehaviors(behaviorsRes);
+        setStudents(data.students || []);
+        setBehaviors(data.behaviors || []);
       } catch (e) {
         console.error("خطأ تحميل البيانات", e);
       }
@@ -71,28 +51,24 @@ export default function AssignBehaviorPage() {
     setMsg("");
 
     try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      const res = await fetch("/api/behavior/assign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentId: selectedStudent,
+          behaviorId: selectedBehavior,
+          note,
+        }),
+      });
 
-      const schoolId = profile.schoolId;
+      const data = await res.json();
 
-      const behavior = behaviors.find((b) => b.id === selectedBehavior);
-      if (!behavior) {
-        setMsg("السلوك غير موجود");
+      if (!res.ok) {
+        setMsg(data.message || "❌ حدث خطأ أثناء التسجيل");
         return;
       }
-
-      await pb.collection("behavior_records").create({
-        student: selectedStudent,
-        behavior: behavior.id,
-        degree: behavior.points,
-        note,
-        schoolId: schoolId,
-        createdBy: profile.id,
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
 
       setMsg("✅ تم تسجيل السلوك (بانتظار الاعتماد)");
       setNote("");
@@ -111,7 +87,9 @@ export default function AssignBehaviorPage() {
       <Header />
 
       <div style={{ padding: 24 }} dir="rtl">
-        <h2 style={{ marginBottom: 20 }}>➕ تسجيل سلوك لطالب</h2>
+        <h2 style={{ marginBottom: 20 }}>
+          ➕ تسجيل سلوك لطالب
+        </h2>
 
         <div
           style={{
@@ -128,8 +106,14 @@ export default function AssignBehaviorPage() {
             👦 اختر الطالب
             <select
               value={selectedStudent}
-              onChange={(e) => setSelectedStudent(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
+              onChange={(e) =>
+                setSelectedStudent(e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: 8,
+                marginTop: 4,
+              }}
             >
               <option value="">-- اختر --</option>
               {students.map((s) => (
@@ -144,8 +128,14 @@ export default function AssignBehaviorPage() {
             ⭐ اختر السلوك
             <select
               value={selectedBehavior}
-              onChange={(e) => setSelectedBehavior(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
+              onChange={(e) =>
+                setSelectedBehavior(e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: 8,
+                marginTop: 4,
+              }}
             >
               <option value="">-- اختر --</option>
               {behaviors.map((b) => (
@@ -161,7 +151,11 @@ export default function AssignBehaviorPage() {
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              style={{ width: "100%", padding: 8, marginTop: 4 }}
+              style={{
+                width: "100%",
+                padding: 8,
+                marginTop: 4,
+              }}
             />
           </label>
 
@@ -178,11 +172,20 @@ export default function AssignBehaviorPage() {
               cursor: "pointer",
             }}
           >
-            {loading ? "جارٍ التسجيل..." : "تسجيل السلوك"}
+            {loading
+              ? "جارٍ التسجيل..."
+              : "تسجيل السلوك"}
           </button>
 
           {msg && (
-            <div style={{ marginTop: 10, fontWeight: 600 }}>{msg}</div>
+            <div
+              style={{
+                marginTop: 10,
+                fontWeight: 600,
+              }}
+            >
+              {msg}
+            </div>
           )}
         </div>
       </div>

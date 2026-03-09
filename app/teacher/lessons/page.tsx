@@ -1,43 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
-
-type Profile = {
-  id: string;
-  schoolId: string;
-};
-
-type Student = {
-  id: string;
-};
-
-type Parent = {
-  id: string;
-  telegramChatId?: string;
-};
-
-type ParentStudentLink = {
-  id: string;
-  expand?: {
-    parent?: Parent;
-  };
-};
-
-type Lesson = {
-  id: string;
-  title: string;
-  day: string;
-  periods: number[];
-};
 
 export default function TeacherLessonsPage() {
   const [title, setTitle] = useState("");
   const [day, setDay] = useState("");
-  const [periods, setPeriods] = useState<number[]>([]);
+  const [periodsInput, setPeriodsInput] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function saveLesson(e: React.FormEvent) {
@@ -45,63 +13,35 @@ export default function TeacherLessonsPage() {
     setLoading(true);
 
     try {
-      if (!pb.authStore.model?.id) {
-        alert("لم يتم تسجيل الدخول");
+      const periods = periodsInput
+        .split(",")
+        .map((n) => Number(n.trim()))
+        .filter((n) => !isNaN(n));
+
+      const res = await fetch("/api/teacher/lessons", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          day,
+          periods,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || "❌ حدث خطأ");
         return;
       }
 
-      // 👤 ملف المعلم
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem<Profile>(`user="${pb.authStore.model.id}"`);
-
-      // 🧠 إنشاء الدرس
-      const lesson = await pb.collection("lessons").create<Lesson>({
-        title,
-        day,
-        periods,
-        schoolId: profile.schoolId,
-        teacherId: profile.id,
-      });
-
-      // 👦 الطلاب المرتبطين بالمدرسة
-      const students = await pb
-        .collection("students")
-        .getFullList<Student>({
-          filter: `schoolId="${profile.schoolId}"`,
-        });
-
-      // 🔔 إشعار أولياء الأمور
-      for (const student of students) {
-        const links = await pb
-          .collection("parents_students")
-          .getFullList<ParentStudentLink>({
-            filter: `student="${student.id}"`,
-            expand: "parent",
-          });
-
-        for (const link of links) {
-          const parent = link.expand?.parent;
-
-          if (parent?.telegramChatId) {
-            await fetch("/api/telegram/send", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chatId: parent.telegramChatId,
-                message: `📘 درس جديد\n\n${lesson.title}\n📅 ${lesson.day}\n🕒 الحصص: ${lesson.periods.join(
-                  ", "
-                )}`,
-              }),
-            });
-          }
-        }
-      }
-
       alert("✅ تم حفظ الدرس وإرسال الإشعارات");
+
       setTitle("");
       setDay("");
-      setPeriods([]);
+      setPeriodsInput("");
     } catch (err) {
       console.error(err);
       alert("❌ حدث خطأ");
@@ -111,39 +51,38 @@ export default function TeacherLessonsPage() {
   }
 
   return (
-    <form onSubmit={saveLesson}>
-      <h2>إضافة درس</h2>
+    <div style={{ maxWidth: 500, margin: "40px auto" }} dir="rtl">
+      <form onSubmit={saveLesson}>
+        <h2>إضافة درس</h2>
 
-      <input
-        placeholder="عنوان الدرس"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        required
-      />
+        <input
+          placeholder="عنوان الدرس"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+          style={{ display: "block", marginBottom: 10, width: "100%" }}
+        />
 
-      <input
-        placeholder="اليوم"
-        value={day}
-        onChange={(e) => setDay(e.target.value)}
-        required
-      />
+        <input
+          placeholder="اليوم (sun, mon, tue...)"
+          value={day}
+          onChange={(e) => setDay(e.target.value)}
+          required
+          style={{ display: "block", marginBottom: 10, width: "100%" }}
+        />
 
-      <input
-        placeholder="الحصص (مثال: 1,2)"
-        onChange={(e) =>
-          setPeriods(
-            e.target.value
-              .split(",")
-              .map((n) => Number(n.trim()))
-              .filter((n) => !isNaN(n))
-          )
-        }
-        required
-      />
+        <input
+          placeholder="الحصص (مثال: 1,2)"
+          value={periodsInput}
+          onChange={(e) => setPeriodsInput(e.target.value)}
+          required
+          style={{ display: "block", marginBottom: 10, width: "100%" }}
+        />
 
-      <button disabled={loading}>
-        {loading ? "..." : "حفظ الدرس"}
-      </button>
-    </form>
+        <button disabled={loading}>
+          {loading ? "..." : "حفظ الدرس"}
+        </button>
+      </form>
+    </div>
   );
 }

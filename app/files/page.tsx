@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 const DAYS_LABEL: Record<string, string> = {
   sun: "الأحد",
@@ -14,24 +10,34 @@ const DAYS_LABEL: Record<string, string> = {
   thu: "الخميس",
 };
 
+type Lesson = {
+  title: string;
+  day: string;
+  periods: string[];
+};
+
+type FileRow = {
+  id: string;
+  fileUrl: string;
+  lesson?: Lesson;
+};
+
 export default function FilesPage() {
-  const [files, setFiles] = useState<any[]>([]);
+  const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadFiles() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-      const res = await pb.collection("files").getFullList({
-        filter: `schoolId="${profile.schoolId}"`,
-        expand: "lessonId",
-        sort: "-created",
-      });
-
-      setFiles(res);
-      setLoading(false);
+      try {
+        const res = await fetch("/api/files");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        setFiles(data.files);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
     }
 
     loadFiles();
@@ -45,30 +51,33 @@ export default function FilesPage() {
 
       {files.length === 0 && <p>لا توجد ملفات</p>}
 
-      <table width="100%" border={1} cellPadding={8}>
-        <thead>
-          <tr>
-            <th>الدرس</th>
-            <th>اليوم</th>
-            <th>الحصص</th>
-            <th>الملف</th>
-          </tr>
-        </thead>
-        <tbody>
-          {files.map((f) => {
-            const lesson = f.expand?.lessonId;
-            return (
+      {files.length > 0 && (
+        <table width="100%" border={1} cellPadding={8}>
+          <thead>
+            <tr>
+              <th>الدرس</th>
+              <th>اليوم</th>
+              <th>الحصص</th>
+              <th>الملف</th>
+            </tr>
+          </thead>
+          <tbody>
+            {files.map((f) => (
               <tr key={f.id}>
-                <td>{lesson?.title || "—"}</td>
+                <td>{f.lesson?.title || "—"}</td>
                 <td>
-                  {lesson ? DAYS_LABEL[lesson.day] : "—"}
+                  {f.lesson?.day
+                    ? DAYS_LABEL[f.lesson.day]
+                    : "—"}
                 </td>
                 <td>
-                  {lesson ? lesson.periods.join(", ") : "—"}
+                  {f.lesson?.periods?.length
+                    ? f.lesson.periods.join(", ")
+                    : "—"}
                 </td>
                 <td>
                   <a
-                    href={pb.files.getUrl(f, f.file)}
+                    href={f.fileUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -76,10 +85,10 @@ export default function FilesPage() {
                   </a>
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

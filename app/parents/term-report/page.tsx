@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -27,32 +23,16 @@ export default function TermReportPage() {
 
   useEffect(() => {
     async function loadInitial() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`, {
-          expand: "schoolId",
-        });
+      const res = await fetch("/api/parent/term-initial");
+      const data = await res.json();
+      if (!res.ok) return;
 
-      const school = profile.expand?.schoolId;
-      if (school) {
-        setSchoolName(school.name);
-        if (school.logo) {
-          setSchoolLogo(pb.files.getUrl(school, school.logo));
-        }
+      setSchoolName(data.schoolName);
+      setSchoolLogo(data.schoolLogo || null);
+      setStudents(data.students || []);
+      if (data.students?.length > 0) {
+        setSelectedStudent(data.students[0].id);
       }
-
-      const links = await pb.collection("parents_students").getFullList({
-        filter: `parent="${profile.id}"`,
-        expand: "student",
-      });
-
-      const list = links.map((l: any) => ({
-        id: l.expand?.student?.id,
-        name: l.expand?.student?.name,
-      }));
-
-      setStudents(list);
-      if (list.length > 0) setSelectedStudent(list[0].id);
     }
 
     loadInitial();
@@ -64,25 +44,18 @@ export default function TermReportPage() {
 
       setLoading(true);
 
-      const behaviors = await pb.collection("behavior_records").getFullList({
-        filter: `student="${selectedStudent}" && status="approved"`,
+      const res = await fetch("/api/parent/term-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: selectedStudent }),
       });
 
-      const points = behaviors.reduce(
-        (sum: number, b: any) => sum + (b.points || 0),
-        0
-      );
-
-      const attendance = await pb.collection("attendance_records").getFullList({
-        filter: `student="${selectedStudent}"`,
-      });
-
-      const absent = attendance.filter((a: any) => a.type === "absent").length;
-      const late = attendance.filter((a: any) => a.type === "late").length;
-
-      setTotalPoints(points);
-      setTotalAbsent(absent);
-      setTotalLate(late);
+      const data = await res.json();
+      if (res.ok) {
+        setTotalPoints(data.totalPoints);
+        setTotalAbsent(data.totalAbsent);
+        setTotalLate(data.totalLate);
+      }
 
       setLoading(false);
     }
@@ -105,32 +78,19 @@ export default function TermReportPage() {
   }
 
   async function generateCertificate() {
-    const existing = await pb.collection("certificates").getFullList({
-      filter: `student="${selectedStudent}" && term="${term}"`,
+    const res = await fetch("/api/parent/generate-certificate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ studentId: selectedStudent, term }),
     });
 
-    if (existing.length > 0) {
-      alert("تم إصدار شهادة لهذا الفصل مسبقاً");
-      setVerificationCode(existing[0].verificationCode);
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.message || "حدث خطأ");
       return;
     }
 
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-    await pb.collection("certificates").create({
-      student: selectedStudent,
-      school: pb.authStore.model?.schoolId,
-      term,
-      totalPoints,
-      totalAbsent,
-      totalLate,
-      medal: getMedal(),
-      status: getStatus(),
-      verificationCode: code,
-      createdAt: new Date().toISOString(),
-    });
-
-    setVerificationCode(code);
+    setVerificationCode(data.verificationCode);
     alert("تم إصدار الشهادة بنجاح");
   }
 
@@ -175,7 +135,10 @@ export default function TermReportPage() {
 
             <h3 style={{ textAlign: "center" }}>شهادة سلوك فصلي</h3>
 
-            <p>👦 الطالب: {students.find(s => s.id === selectedStudent)?.name}</p>
+            <p>
+              👦 الطالب:{" "}
+              {students.find((s) => s.id === selectedStudent)?.name}
+            </p>
             <p>⭐ مجموع النقاط: {totalPoints}</p>
             <p>❌ الغياب: {totalAbsent}</p>
             <p>⏰ التأخير: {totalLate}</p>

@@ -1,7 +1,8 @@
 import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 
 export async function getCurrentProfile() {
+  const pb = await getServerPB();
+
   if (!pb.authStore.model) {
     throw new Error("Unauthorized");
   }
@@ -24,7 +25,7 @@ export function enforceSchoolIsolation(
   targetSchoolId?: string
 ) {
   if (profile.role === "super_admin") {
-    return; // super_admin يمكنه رؤية الكل
+    return;
   }
 
   if (!profile.schoolId) {

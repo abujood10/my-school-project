@@ -1,11 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -15,164 +10,145 @@ type Student = {
 
 export default function StudentsAdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [schoolId, setSchoolId] = useState<string>("");
   const [name, setName] = useState("");
   const [studentClass, setStudentClass] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [msg, setMsg] = useState("");
 
-  // تحميل الطلاب
   useEffect(() => {
-    async function loadStudents() {
-      try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-        setSchoolId(profile.schoolId);
-
-        const list = await pb.collection("students").getFullList({
-          filter: `schoolId="${profile.schoolId}"`,
-          sort: "name",
-        });
-
-        const mapped = list.map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          class: s.class,
-        }));
-
-        setStudents(mapped);
-      } catch (e) {
-        console.error("خطأ تحميل الطلاب", e);
-      }
-    }
-
     loadStudents();
   }, []);
 
-  // إضافة طالب
+  async function loadStudents() {
+    try {
+      const res = await fetch("/api/admin/students");
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message);
+
+      setStudents(data.students);
+    } catch (e: any) {
+      console.error(e.message);
+    } finally {
+      setInitialLoading(false);
+    }
+  }
+
   async function addStudent(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMsg("");
 
     try {
-      const student = await pb.collection("students").create({
-        name,
-        class: studentClass,
-        schoolId,
+      const res = await fetch("/api/admin/students", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          class: studentClass,
+        }),
       });
 
-      setStudents((prev) => [
-        ...prev,
-        {
-          id: student.id,
-          name: student.name,
-          class: student.class,
-        },
-      ]);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message);
+
+      setMsg("✅ تم إضافة الطالب");
 
       setName("");
       setStudentClass("");
-      setMsg("✅ تم إضافة الطالب");
+
+      loadStudents();
     } catch (e: any) {
-      setMsg(e.message || "❌ فشل إضافة الطالب");
+      setMsg(e.message || "❌ حدث خطأ");
     } finally {
       setLoading(false);
     }
   }
 
-  // حذف طالب
-  async function deleteStudent(id: string) {
-    if (!confirm("هل أنت متأكد من حذف الطالب؟")) return;
-
-    try {
-      await pb.collection("students").delete(id);
-      setStudents((prev) => prev.filter((s) => s.id !== id));
-    } catch {
-      alert("فشل الحذف");
-    }
-  }
-
   return (
-    <>
-      <Header />
+    <div className="p-6 max-w-4xl mx-auto" dir="rtl">
+      <h1 className="text-2xl font-bold mb-6">إدارة الطلاب</h1>
 
-      <div style={{ padding: 24 }} dir="rtl">
-        <h1 style={{ marginBottom: 16 }}>👦 إدارة الطلاب</h1>
+      <form
+        onSubmit={addStudent}
+        className="border p-4 rounded mb-8"
+      >
+        <h2 className="font-bold mb-4">إضافة طالب</h2>
 
-        {/* إضافة طالب */}
-        <form
-          onSubmit={addStudent}
-          style={{
-            background: "#fafafa",
-            padding: 16,
-            borderRadius: 12,
-            marginBottom: 24,
-          }}
+        <input
+          type="text"
+          className="border p-2 w-full mb-4 rounded"
+          placeholder="اسم الطالب"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+
+        <input
+          type="text"
+          className="border p-2 w-full mb-4 rounded"
+          placeholder="الصف"
+          value={studentClass}
+          onChange={(e) => setStudentClass(e.target.value)}
+          required
+        />
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
-          <h3>➕ إضافة طالب</h3>
+          {loading ? "جارٍ الإضافة..." : "إضافة الطالب"}
+        </button>
+      </form>
 
-          <input
-            placeholder="اسم الطالب"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+      <h2 className="font-bold mb-4">قائمة الطلاب</h2>
 
-          <input
-            placeholder="الصف / الفصل"
-            value={studentClass}
-            onChange={(e) => setStudentClass(e.target.value)}
-            required
-          />
+      {initialLoading && <p>جاري التحميل...</p>}
 
-          <button disabled={loading}>
-            {loading ? "⏳ جاري الإضافة..." : "إضافة"}
-          </button>
+      {!initialLoading && (
+        <table className="w-full border text-sm">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border p-2 text-right">
+                اسم الطالب
+              </th>
+              <th className="border p-2 text-right">
+                الصف
+              </th>
+            </tr>
+          </thead>
 
-          {msg && <p style={{ marginTop: 8 }}>{msg}</p>}
-        </form>
+          <tbody>
+            {students.map((s) => (
+              <tr key={s.id}>
+                <td className="border p-2">{s.name}</td>
+                <td className="border p-2">{s.class}</td>
+              </tr>
+            ))}
 
-        {/* قائمة الطلاب */}
-        <h3>📋 قائمة الطلاب</h3>
+            {students.length === 0 && (
+              <tr>
+                <td
+                  colSpan={2}
+                  className="border p-4 text-center text-gray-500"
+                >
+                  لا يوجد طلاب بعد
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
 
-        {students.length === 0 && <p>لا يوجد طلاب</p>}
-
-        {students.map((s) => (
-          <div
-            key={s.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderBottom: "1px solid #eee",
-              padding: "8px 0",
-            }}
-          >
-            <div>
-              <strong>{s.name}</strong>
-              <div style={{ fontSize: 13, color: "#666" }}>
-                الصف: {s.class}
-              </div>
-            </div>
-
-            <button
-              onClick={() => deleteStudent(s.id)}
-              style={{
-                background: "#ffecec",
-                border: "1px solid #ffb3b3",
-                borderRadius: 8,
-                padding: "6px 10px",
-                cursor: "pointer",
-              }}
-            >
-              🗑️ حذف
-            </button>
-          </div>
-        ))}
-      </div>
-    </>
+      {msg && (
+        <p className="mt-4 font-semibold">{msg}</p>
+      )}
+    </div>
   );
 }

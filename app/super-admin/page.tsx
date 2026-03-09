@@ -1,126 +1,161 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Header from "@/app/components/Header";
 
 type School = {
   id: string;
   name: string;
-  subdomain: string;
   status: string;
-  created: string;
+  expiresAt?: string;
+  expand?: {
+    plan?: {
+      name: string;
+    };
+  };
 };
 
 export default function SuperAdminPage() {
   const [schools, setSchools] = useState<School[]>([]);
-  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
-  const [subdomain, setSubdomain] = useState("");
+  const [planId, setPlanId] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  async function fetchSchools() {
-    try {
-      const res = await fetch("/api/schools");
-      const data = await res.json();
-      setSchools(data.items || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    loadSchools();
+  }, []);
+
+  async function loadSchools() {
+    const res = await fetch("/api/super-admin/schools");
+    const data = await res.json();
+    if (res.ok) setSchools(data);
   }
 
-  async function createSchool() {
-    if (!name || !subdomain) return;
+  async function createSchool(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
 
-    await fetch("/api/schools", {
+    const res = await fetch("/api/super-admin/schools", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, planId, expiresAt }),
+    });
+
+    if (res.ok) {
+      setName("");
+      setPlanId("");
+      setExpiresAt("");
+      loadSchools();
+    }
+
+    setLoading(false);
+  }
+
+  async function toggleSchool(id: string, current: string) {
+    const newStatus =
+      current === "active" ? "suspended" : "active";
+
+    await fetch("/api/super-admin/toggle-school", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name,
-        subdomain,
-        status: "active",
+        schoolId: id,
+        status: newStatus,
       }),
     });
 
-    setName("");
-    setSubdomain("");
-    fetchSchools();
+    loadSchools();
   }
 
-  useEffect(() => {
-    fetchSchools();
-  }, []);
-
   return (
-    <div className="p-8 space-y-8">
+    <>
+      <Header />
 
-      <h1 className="text-2xl font-bold">
-        👑 إدارة المدارس
-      </h1>
+      <div className="p-6 max-w-6xl mx-auto">
+        <h1 className="text-2xl font-bold mb-8">
+          👑 لوحة تحكم المشرف العام
+        </h1>
 
-      {/* إضافة مدرسة */}
-      <div className="bg-white p-6 rounded-xl shadow-md space-y-4 max-w-xl">
-
-        <h2 className="font-semibold text-lg">إضافة مدرسة جديدة</h2>
-
-        <input
-          type="text"
-          placeholder="اسم المدرسة"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full border p-2 rounded"
-        />
-
-        <input
-          type="text"
-          placeholder="subdomain (مثال: school1)"
-          value={subdomain}
-          onChange={(e) => setSubdomain(e.target.value)}
-          className="w-full border p-2 rounded"
-        />
-
-        <button
-          onClick={createSchool}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+        {/* إنشاء مدرسة */}
+        <form
+          onSubmit={createSchool}
+          className="bg-gray-100 p-6 rounded-xl mb-10"
         >
-          إنشاء المدرسة
-        </button>
+          <h3 className="mb-4 font-bold">
+            ➕ إضافة مدرسة جديدة
+          </h3>
+
+          <input
+            placeholder="اسم المدرسة"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="border p-2 mr-2"
+            required
+          />
+
+          <input
+            placeholder="Plan ID"
+            value={planId}
+            onChange={(e) => setPlanId(e.target.value)}
+            className="border p-2 mr-2"
+            required
+          />
+
+          <input
+            type="date"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+            className="border p-2 mr-2"
+          />
+
+          <button
+            disabled={loading}
+            className="bg-black text-white px-4 py-2 rounded"
+          >
+            {loading ? "جاري الإنشاء..." : "إنشاء"}
+          </button>
+        </form>
+
+        {/* قائمة المدارس */}
+        <div className="grid gap-6">
+          {schools.map((s) => (
+            <div
+              key={s.id}
+              className="border p-6 rounded-xl flex justify-between"
+            >
+              <div>
+                <h3 className="font-bold text-lg">
+                  {s.name}
+                </h3>
+                <p>الحالة: {s.status}</p>
+                <p>
+                  الباقة: {s.expand?.plan?.name || "-"}
+                </p>
+                <p>
+                  انتهاء الاشتراك:{" "}
+                  {s.expiresAt
+                    ? new Date(
+                        s.expiresAt
+                      ).toLocaleDateString("ar-SA")
+                    : "-"}
+                </p>
+              </div>
+
+              <button
+                onClick={() =>
+                  toggleSchool(s.id, s.status)
+                }
+                className="bg-red-500 text-white px-4 py-2 rounded"
+              >
+                {s.status === "active"
+                  ? "تعليق"
+                  : "تفعيل"}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
-
-      {/* عرض المدارس */}
-      <div className="bg-white p-6 rounded-xl shadow-md">
-
-        <h2 className="font-semibold text-lg mb-4">المدارس المسجلة</h2>
-
-        {loading ? (
-          <p>جاري التحميل...</p>
-        ) : schools.length === 0 ? (
-          <p>لا توجد مدارس حالياً</p>
-        ) : (
-          <table className="w-full border">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-2 border">المدرسة</th>
-                <th className="p-2 border">Subdomain</th>
-                <th className="p-2 border">الحالة</th>
-                <th className="p-2 border">تاريخ الإنشاء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {schools.map((school) => (
-                <tr key={school.id}>
-                  <td className="p-2 border">{school.name}</td>
-                  <td className="p-2 border">{school.subdomain}</td>
-                  <td className="p-2 border">{school.status}</td>
-                  <td className="p-2 border">
-                    {new Date(school.created).toLocaleDateString("ar-SA")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-    </div>
+    </>
   );
 }

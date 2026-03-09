@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import PocketBase from "pocketbase";
-
-const pb = new PocketBase(process.env.NEXT_PUBLIC_PB_URL);
 
 type Group = {
   id: string;
@@ -15,10 +12,12 @@ export default function GroupsDisplayPage() {
   const [groups, setGroups] = useState<Group[]>([]);
 
   async function loadGroups() {
-    const res = await pb.collection("groups").getFullList<Group>({
-      sort: "-totalPoints",
-    });
-    setGroups(res.slice(0, 5)); // أفضل 5 فقط
+    try {
+      const res = await fetch("/api/display/groups");
+      const data = await res.json();
+      if (!res.ok) return;
+      setGroups(data.groups);
+    } catch {}
   }
 
   useEffect(() => {

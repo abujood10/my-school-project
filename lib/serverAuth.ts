@@ -1,12 +1,19 @@
+// lib/serverAuth.ts
+
+import PocketBase from "pocketbase";
 import { cookies } from "next/headers";
-import { createPB } from "./pocketbase";
 
 export async function getServerPB() {
-  const cookieStore = await cookies();
+  const pb = new PocketBase(
+    process.env.NEXT_PUBLIC_PB_URL
+  );
 
-  const authCookie = cookieStore.get("pb_auth")?.value;
+  const cookieStore = cookies();
+  const authCookie = cookieStore.get("pb_auth");
 
-  const pb = createPB(authCookie);
+  if (authCookie?.value) {
+    pb.authStore.loadFromCookie(authCookie.value);
+  }
 
   return pb;
 }

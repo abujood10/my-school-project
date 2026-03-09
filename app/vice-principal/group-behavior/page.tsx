@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Group = {
   id: string;
@@ -19,12 +15,6 @@ type Behavior = {
   points: number;
 };
 
-type GroupStudent = {
-  id: string;
-  student: string; // 👈 هنا id مباشر وليس expand
-  group: string;
-};
-
 export default function GroupBehaviorPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [behaviors, setBehaviors] = useState<Behavior[]>([]);
@@ -36,12 +26,16 @@ export default function GroupBehaviorPage() {
 
   useEffect(() => {
     async function loadData() {
-      const groupsRes = await pb.collection("groups").getFullList<Group>();
-      const behaviorsRes =
-        await pb.collection("behaviors").getFullList<Behavior>();
+      try {
+        const res = await fetch("/api/group-behavior/init");
+        const data = await res.json();
+        if (!res.ok) return;
 
-      setGroups(groupsRes);
-      setBehaviors(behaviorsRes);
+        setGroups(Array.isArray(data.groups) ? data.groups : []);
+        setBehaviors(Array.isArray(data.behaviors) ? data.behaviors : []);
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     loadData();
@@ -54,43 +48,48 @@ export default function GroupBehaviorPage() {
     setMsg("");
 
     try {
-      const behavior = behaviors.find(
-        (b) => b.id === selectedBehavior
-      );
-
-      if (!behavior) throw new Error("سلوك غير موجود");
-
-      // 👇 بدون expand
-      const groupStudents =
-        await pb.collection("group_students").getFullList<GroupStudent>({
-          filter: `group="${selectedGroup}"`,
-        });
-
-      for (const gs of groupStudents) {
-        await pb.collection("student_behaviors").create({
-          student: gs.student, // ✅ هنا الحل
-          behavior: selectedBehavior,
-          points: behavior.points,
+      const res = await fetch("/api/group-behavior/assign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          groupId: selectedGroup,
+          behaviorId: selectedBehavior,
           note,
-          date: new Date().toISOString(),
-        });
-      }
-
-      // تحديث نقاط المجموعة
-      const group = groups.find((g) => g.id === selectedGroup);
-      const currentPoints = group?.totalPoints || 0;
-      const addedPoints = behavior.points * groupStudents.length;
-
-      await pb.collection("groups").update(selectedGroup, {
-        totalPoints: currentPoints + addedPoints,
+        }),
       });
 
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMsg(data.message || "❌ حدث خطأ");
+        return;
+      }
+
       setMsg(
-        `✅ تم إضافة السلوك لـ ${groupStudents.length} طالب
-🏆 تمت إضافة ${addedPoints} نقطة للمجموعة`
+        `✅ تم إضافة السلوك لـ ${data.count || 0} طالب
+🏆 تمت إضافة ${data.addedPoints || 0} نقطة للمجموعة`
       );
-    } catch (e: any) {
-      setMsg(e.message || "❌ حدث خطأ");
+
+      // تحديث نقاط المجموعة محليًا
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === selectedGroup
+            ? {
+                ...g,
+                totalPoints:
+                  (g.totalPoints || 0) +
+                  (data.addedPoints || 0),
+              }
+            : g
+        )
+      );
+
+      setNote("");
+    } catch (e) {
+      console.error(e);
+      setMsg("❌ حدث خطأ");
     } finally {
       setLoading(false);
     }
@@ -157,7 +156,12 @@ export default function GroupBehaviorPage() {
         </button>
 
         {msg && (
-          <div style={{ marginTop: 16, whiteSpace: "pre-line" }}>
+          <div
+            style={{
+              marginTop: 16,
+              whiteSpace: "pre-line",
+            }}
+          >
             {msg}
           </div>
         )}

@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Student = {
   id: string;
@@ -15,23 +11,22 @@ type Student = {
 export default function AttendancePage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState("");
-  const [type, setType] = useState("absent");
+  const [type, setType] = useState<"absent" | "late">("absent");
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
     async function loadStudents() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      try {
+        const res = await fetch("/api/attendance/init");
+        const data = await res.json();
+        if (!res.ok) return;
 
-      const res = await pb.collection("students").getFullList<Student>({
-        filter: `school="${profile.schoolId}"`,
-        sort: "name",
-      });
-
-      setStudents(res);
+        setStudents(Array.isArray(data.students) ? data.students : []);
+      } catch (e) {
+        console.error(e);
+      }
     }
 
     loadStudents();
@@ -47,23 +42,30 @@ export default function AttendancePage() {
     setMsg("");
 
     try {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-      await pb.collection("attendance_records").create({
-        student: selectedStudent,
-        type,
-        date: new Date().toISOString(),
-        reason,
-        school: profile.schoolId,
-        createdBy: profile.id,
-        createdAt: new Date().toISOString(),
+      const res = await fetch("/api/attendance/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentId: selectedStudent,
+          type,
+          reason,
+        }),
       });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMsg(data.message || "❌ حدث خطأ أثناء الحفظ");
+        return;
+      }
 
       setMsg("✅ تم تسجيل الحالة بنجاح");
       setReason("");
+      setSelectedStudent("");
     } catch (e) {
+      console.error(e);
       setMsg("❌ حدث خطأ أثناء الحفظ");
     } finally {
       setLoading(false);
@@ -93,7 +95,9 @@ export default function AttendancePage() {
 
           <select
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) =>
+              setType(e.target.value as "absent" | "late")
+            }
             style={{ padding: 8 }}
           >
             <option value="absent">غياب</option>

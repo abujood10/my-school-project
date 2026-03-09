@@ -1,11 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 export default function AdminLayout({
   children,
@@ -13,21 +9,33 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function check() {
-      const profile = await pb
-        .collection("profiles")
-        .getFirstListItem(`user="${pb.authStore.model?.id}"`);
+      try {
+        const res = await fetch("/api/me");
+        const data = await res.json();
 
-      if (profile.role !== "school_admin") {
-        alert("غير مصرح");
-        router.push("/");
+        if (!res.ok || data.role !== "school_admin") {
+          router.replace("/");
+          return;
+        }
+
+        setAuthorized(true);
+      } catch {
+        router.replace("/");
       }
     }
 
     check();
-  }, []);
+  }, [router]);
+
+  if (authorized === null) {
+    return <p style={{ padding: 20 }}>جاري التحقق...</p>;
+  }
+
+  if (!authorized) return null;
 
   return <>{children}</>;
 }

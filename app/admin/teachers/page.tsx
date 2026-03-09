@@ -1,11 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
 import Header from "@/app/components/Header";
-
-
 
 type Teacher = {
   id: string;
@@ -15,73 +11,54 @@ type Teacher = {
 
 export default function TeachersAdminPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [schoolId, setSchoolId] = useState<string>("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // تحميل المعلمين
   useEffect(() => {
-    async function loadTeachers() {
-      try {
-        const profile = await pb
-          .collection("profiles")
-          .getFirstListItem(`user="${pb.authStore.model?.id}"`);
-
-        setSchoolId(profile.schoolId);
-
-        const list = await pb.collection("profiles").getFullList({
-          filter: `schoolId="${profile.schoolId}" && role="teacher"`,
-        });
-
-        const mapped = list.map((t: any) => ({
-          id: t.id,
-          name: t.name,
-          email: t.email,
-        }));
-
-        setTeachers(mapped);
-      } catch (e) {
-        console.error("خطأ تحميل المعلمين", e);
-      }
-    }
-
     loadTeachers();
   }, []);
 
-  // إضافة معلم
-  async function addTeacher(e: React.FormEvent) {
+  async function loadTeachers() {
+    try {
+      const res = await fetch("/api/admin/teachers");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setTeachers(data.teachers);
+    } catch (e: any) {
+      console.error(e.message);
+    }
+  }
+
+  async function createTeacher(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setMsg("");
+    setLoading(true);
 
     try {
-      // 1️⃣ إنشاء مستخدم
-      const user = await pb.collection("users").create({
-        email,
-        password,
-        passwordConfirm: password,
+      const res = await fetch("/api/admin/teachers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+        }),
       });
 
-      // 2️⃣ إنشاء بروفايل المعلم
-      const profile = await pb.collection("profiles").create({
-        user: user.id,
-        name,
-        role: "teacher",
-        schoolId,
-      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-      setTeachers((prev) => [
-        ...prev,
-        { id: profile.id, name, email },
-      ]);
-
+      setMsg("✅ تم إضافة المعلم");
       setName("");
       setEmail("");
       setPassword("");
-      setMsg("✅ تم إضافة المعلم");
+      setTeachers(data.teachers);
+
     } catch (e: any) {
       setMsg(e.message || "❌ فشل الإضافة");
     } finally {
@@ -89,15 +66,20 @@ export default function TeachersAdminPage() {
     }
   }
 
-  // حذف معلم
   async function deleteTeacher(id: string) {
     if (!confirm("هل أنت متأكد من حذف المعلم؟")) return;
 
     try {
-      await pb.collection("profiles").delete(id);
-      setTeachers((prev) => prev.filter((t) => t.id !== id));
-    } catch (e) {
-      alert("فشل الحذف");
+      const res = await fetch(`/api/admin/teachers?id=${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      setTeachers(data.teachers);
+    } catch (e: any) {
+      alert(e.message || "فشل الحذف");
     }
   }
 
@@ -108,9 +90,8 @@ export default function TeachersAdminPage() {
       <div style={{ padding: 24 }} dir="rtl">
         <h1 style={{ marginBottom: 16 }}>👨‍🏫 إدارة المعلمين</h1>
 
-        {/* إضافة معلم */}
         <form
-          onSubmit={addTeacher}
+          onSubmit={createTeacher}
           style={{
             background: "#fafafa",
             padding: 16,
@@ -124,36 +105,37 @@ export default function TeachersAdminPage() {
             placeholder="اسم المعلم"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            style={inputStyle}
             required
           />
 
           <input
-            type="email"
             placeholder="البريد الإلكتروني"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            style={inputStyle}
             required
           />
 
           <input
-            type="password"
             placeholder="كلمة المرور"
+            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
             required
           />
 
-          <button disabled={loading}>
-            {loading ? "⏳ جاري الإضافة..." : "إضافة"}
+          <button disabled={loading} style={btnStyle}>
+            {loading ? "جاري الإضافة..." : "إضافة"}
           </button>
 
           {msg && <p style={{ marginTop: 8 }}>{msg}</p>}
         </form>
 
-        {/* قائمة المعلمين */}
         <h3>📋 قائمة المعلمين</h3>
 
-        {teachers.length === 0 && <p>لا يوجد معلمون</p>}
+        {teachers.length === 0 && <p>لا يوجد معلمين</p>}
 
         {teachers.map((t) => (
           <div
@@ -167,23 +149,14 @@ export default function TeachersAdminPage() {
             }}
           >
             <div>
-              <strong>{t.name}</strong>
-              <div style={{ fontSize: 13, color: "#666" }}>
-                {t.email}
-              </div>
+              👤 <strong>{t.name}</strong> — {t.email}
             </div>
 
             <button
               onClick={() => deleteTeacher(t.id)}
-              style={{
-                background: "#ffecec",
-                border: "1px solid #ffb3b3",
-                borderRadius: 8,
-                padding: "6px 10px",
-                cursor: "pointer",
-              }}
+              style={deleteBtnStyle}
             >
-              🗑️ حذف
+              ❌ حذف
             </button>
           </div>
         ))}
@@ -191,3 +164,25 @@ export default function TeachersAdminPage() {
     </>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: 10,
+  marginBottom: 10,
+};
+
+const btnStyle: React.CSSProperties = {
+  width: "100%",
+  padding: 12,
+  background: "#000",
+  color: "#fff",
+  cursor: "pointer",
+};
+
+const deleteBtnStyle: React.CSSProperties = {
+  background: "#ffecec",
+  border: "1px solid #ffb3b3",
+  borderRadius: 8,
+  padding: "6px 10px",
+  cursor: "pointer",
+};

@@ -1,10 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getServerPB } from "@/lib/serverAuth";
-const pb = await getServerPB();
-
-
 
 type Student = {
   id: string;
@@ -23,6 +19,7 @@ type School = {
   id: string;
   name: string;
   logo?: string;
+  logoUrl?: string;
 };
 
 export default function StudentsDisplayPage() {
@@ -34,27 +31,18 @@ export default function StudentsDisplayPage() {
 
   async function loadData() {
     try {
-      const studentsRes = await pb.collection("students").getFullList<Student>({
-        sort: "-totalPoints",
-      });
+      const res = await fetch("/api/display/students");
+      const data = await res.json();
+      if (!res.ok) return;
 
-      const top10 = studentsRes.slice(0, 10);
+      const top10 = data.students.slice(0, 10);
       setStudents(top10);
+      setGroups(data.groups.slice(0, 5));
+      setSchool(data.school || null);
 
       if (top10.length > 0 && top10[0].id !== topStudentId) {
         setTopStudentId(top10[0].id);
         triggerCelebration();
-      }
-
-      const groupsRes = await pb.collection("groups").getFullList<Group>({
-        sort: "-totalPoints",
-      });
-
-      setGroups(groupsRes.slice(0, 5));
-
-      const schoolsRes = await pb.collection("schools").getFullList<School>();
-      if (schoolsRes.length > 0) {
-        setSchool(schoolsRes[0]);
       }
     } catch (err) {
       console.error(err);
@@ -85,7 +73,6 @@ export default function StudentsDisplayPage() {
         overflow: "hidden",
       }}
     >
-      {/* تأثير احتفال بدون مكتبات */}
       {celebrate && (
         <div className="celebration">
           {Array.from({ length: 60 }).map((_, i) => (
@@ -96,9 +83,9 @@ export default function StudentsDisplayPage() {
 
       {school && (
         <div style={{ textAlign: "center", marginBottom: 40 }}>
-          {school.logo && (
+          {school.logoUrl && (
             <img
-              src={pb.files.getUrl(school, school.logo)}
+              src={school.logoUrl}
               style={{ height: 100, marginBottom: 10 }}
             />
           )}
@@ -134,7 +121,7 @@ export default function StudentsDisplayPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
               {s.photo && (
                 <img
-                  src={pb.files.getUrl(s, s.photo)}
+                  src={s.photo}
                   style={{
                     width: 70,
                     height: 70,
